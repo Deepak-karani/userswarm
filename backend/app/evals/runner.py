@@ -1,4 +1,4 @@
-"""Eval orchestrator: compute code + LLM + Phoenix + agreement evals, persist, and log to Arize."""
+"""Eval orchestrator: compute code + LLM + agreement evals, persist, and log to Arize AX."""
 from __future__ import annotations
 
 from ..integrations import arize, terac
@@ -15,10 +15,11 @@ def _persist(db, run_id: str, report_id, name: str, result: tuple[float, bool, s
 
 
 def run_all_evals(db, run, llm) -> None:
-    """Compute per-report and aggregate evals, persist EvalScore rows, log to Arize."""
+    """Compute per-report and aggregate evals, persist EvalScore rows, log to Arize AX."""
     eval_batch: list[dict] = []
 
     with arize.traced("evals"):
+        # Per-report code + LLM-judge evals.
         for report in run.reports:
             rdict = report.report or {}
 
@@ -29,17 +30,6 @@ def run_all_evals(db, run, llm) -> None:
                 ("hallucination_risk", lambda r: llm_evals.hallucination_risk(llm, r)),
             ]:
                 result = fn(rdict)
-                _persist(db, run.id, report.id, eval_name, result)
-                eval_batch.append({
-                    "eval_name": eval_name,
-                    "score": result[0],
-                    "passed": result[1],
-                    "explanation": result[2],
-                    "report_id": report.id,
-                })
-
-            phoenix_results = arize.run_phoenix_evals(rdict)
-            for eval_name, result in phoenix_results.items():
                 _persist(db, run.id, report.id, eval_name, result)
                 eval_batch.append({
                     "eval_name": eval_name,
@@ -76,4 +66,5 @@ def run_all_evals(db, run, llm) -> None:
 
         db.commit()
 
+    # Batch-log all eval results to Arize AX as span attributes.
     arize.log_eval_batch(run.id, eval_batch)

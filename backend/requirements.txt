@@ -10,5 +10,4 @@ psycopg2-binary>=2.9
 # Optional sponsor SDKs (app runs in mock mode without them):
 arize-otel>=0.7
 openinference-instrumentation-anthropic>=0.1
-arize-phoenix-evals>=0.17
 # agentspan
