@@ -64,13 +64,7 @@ class InProcessRunner:
                         "name": persona_row.name, "description": persona_row.description,
                         "traits": persona_row.traits, "goals": persona_row.goals,
                     }
-                    browser = BrowserSession(run.id, do_not_click_rules=inputs["do_not_click_rules"])
-                    try:
-                        raw, steps = ux_tester.run_test(
-                            llm, persona, inputs, browser, run.id, prompt_override
-                        )
-                    finally:
-                        browser.close()
+                    raw, steps = self._ux_test(llm, persona, inputs, run.id, prompt_override)
                     report = report_critic.validate_and_repair(llm, raw, persona_row.name)
                     return idx, persona_row, report, steps
 
@@ -130,6 +124,17 @@ class InProcessRunner:
                     pass
         return run
 
+    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
+        """Run one UX tester. Default: in-process scripted explorer with its own BrowserSession.
+
+        ``AgentspanRunner`` overrides this to run the same tools as a real Agentspan agent.
+        """
+        browser = BrowserSession(run_id, do_not_click_rules=inputs.get("do_not_click_rules") or [])
+        try:
+            return ux_tester.run_test(llm, persona, inputs, browser, run_id, prompt_override)
+        finally:
+            browser.close()
+
     def improve_and_rerun(self, db, base_run: Run) -> Run:
         from ..models import Annotation, EvalScore
 
@@ -172,16 +177,22 @@ class InProcessRunner:
 
 
 class AgentspanRunner(InProcessRunner):
-    """Tries the Agentspan SDK to register/execute the same nodes, else in-process."""
+    """Runs each UX tester as a real Agentspan agent (durable workflow server).
 
-    def run(self, db, run: Run, prompt_override: str | None = None) -> Run:
+    The DAG (persona-gen -> fan-out testers -> aggregate -> evals) is inherited from
+    ``InProcessRunner``; only the per-persona tester is swapped to Agentspan. If the
+    Agentspan SDK/server is unavailable or errors, it falls back to the scripted
+    in-process tester so a run never fails for infrastructure reasons.
+    """
+
+    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
         try:
-            import agentspan  # noqa: F401  -- lazy import; presence-only check
+            from .agentspan_agents import run_ux_test_agentspan
+
+            return run_ux_test_agentspan(llm, persona, inputs, run_id, prompt_override)
         except Exception:
-            return super().run(db, run, prompt_override=prompt_override)
-        # Real Agentspan registration would go here; the node bodies are identical
-        # to InProcessRunner. We delegate to keep behavior consistent and safe.
-        return super().run(db, run, prompt_override=prompt_override)
+            # SDK missing, server unreachable, or runtime error -> safe fallback.
+            return super()._ux_test(llm, persona, inputs, run_id, prompt_override)
 
 
 def get_runner() -> InProcessRunner:
