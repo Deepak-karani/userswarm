@@ -20,6 +20,8 @@ class RunCreate(BaseModel):
     task: str = ""              # optional — empty means the swarm free-explores
     success_criteria: str = ""
     do_not_click_rules: list[str] = Field(default_factory=list)
+    num_personas: int = 3                                    # how many AI testers to run (1-5)
+    persona_types: list[str] = Field(default_factory=list)   # optional: which persona types to use
 
 
 # ---------- Strict agent output ----------

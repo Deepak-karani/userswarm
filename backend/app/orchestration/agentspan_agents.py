@@ -79,11 +79,18 @@ def generate_personas_agentspan(inputs: dict, n: int = 3) -> list[dict] | None:
         "You generate realistic, diverse user personas for UX testing of a product. "
         "Output ONLY a single JSON object, no prose."
     )
+    ptypes = [str(t).strip() for t in (inputs.get("persona_types") or []) if str(t).strip()]
+    types_line = (
+        f"The builder requested these persona TYPES — generate one per type, in order, up to {n}: "
+        f"{', '.join(ptypes)}.\n" if ptypes else ""
+    )
     query = (
         f"Product: {inputs.get('description', '')}\n"
         f"Target audience: {inputs.get('audience', '')}\n"
         f"Task they will attempt: {inputs.get('task', '')}\n\n"
-        f"Generate {n} distinct, plausible personas. Respond as JSON:\n"
+        f"{types_line}"
+        f"Generate {n} distinct, plausible personas that are genuinely different human archetypes "
+        f"(vary patience, reading style, tech-savviness, disposition). Respond as JSON:\n"
         '{"personas":[{"name":"...","description":"...","traits":["..."],"goals":["..."]}]}'
     )
     data = _run_agent_json("persona_generator", instructions, query)
@@ -91,7 +98,7 @@ def generate_personas_agentspan(inputs: dict, n: int = 3) -> list[dict] | None:
         return None
     personas = data.get("personas")
     if isinstance(personas, list) and personas:
-        return personas
+        return personas[:n]
     return None
 
 

@@ -94,6 +94,8 @@ export interface CreateRunInput {
   task?: string; // optional — empty means the swarm free-explores
   success_criteria?: string;
   do_not_click_rules: string[];
+  num_personas?: number; // how many AI testers to run (1-5)
+  persona_types?: string[]; // optional: which persona types to use
 }
 
 export interface AnnotateData {

@@ -19,8 +19,10 @@ export default function HomePage() {
     url: "",
     description: "",
     audience: "",
+    persona_types: "",
     do_not_click: "",
   });
+  const [numPersonas, setNumPersonas] = useState(3);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<RunOut[]>([]);
@@ -44,10 +46,16 @@ export default function HomePage() {
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean);
+      const persona_types = form.persona_types
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const { id } = await createRun({
         url: form.url,
         description: form.description,
         audience: form.audience,
+        num_personas: numPersonas,
+        persona_types,
         do_not_click_rules,
       });
       router.push(`/runs/${id}`);
@@ -144,6 +152,43 @@ export default function HomePage() {
                   className={inputCls}
                   value={form.audience}
                   onChange={(e) => set("audience", e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Testers</label>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setNumPersonas(n)}
+                      aria-pressed={numPersonas === n}
+                      className={`h-9 flex-1 rounded-md border font-mono text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/40 ${
+                        numPersonas === n
+                          ? "border-heat-ember bg-heat-ember/15 text-fog"
+                          : "border-ink-line bg-ink-900/60 text-fog-muted hover:border-cool/40"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fog-faint">
+                  AI personas to run
+                </p>
+              </div>
+              <div>
+                <label className={labelCls}>
+                  Persona types{" "}
+                  <span className="tracking-normal text-fog-faint">
+                    (optional · comma / newline)
+                  </span>
+                </label>
+                <input
+                  placeholder="Skeptical buyer, impatient mobile user"
+                  className={inputCls}
+                  value={form.persona_types}
+                  onChange={(e) => set("persona_types", e.target.value)}
                 />
               </div>
               <div>

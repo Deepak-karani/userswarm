@@ -45,10 +45,13 @@ def _improve_thread(base_run_id: str, improved_run_id: str) -> None:
 
 @router.post("")
 def create_run(body: RunCreate, db: Session = Depends(get_db)) -> dict:
+    n = max(1, min(5, body.num_personas or 3))
     run = Run(
         id=_new_id(), url=body.url, description=body.description, audience=body.audience,
         task=body.task, success_criteria=body.success_criteria,
-        do_not_click_rules=list(body.do_not_click_rules or []), status="pending", variant="base",
+        do_not_click_rules=list(body.do_not_click_rules or []),
+        num_personas=n, persona_types=list(body.persona_types or []),
+        status="pending", variant="base",
     )
     db.add(run)
     db.commit()

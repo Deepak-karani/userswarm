@@ -24,6 +24,8 @@ class Run(Base):
     task: Mapped[str] = mapped_column(Text)
     success_criteria: Mapped[str] = mapped_column(Text, default="")
     do_not_click_rules: Mapped[list] = mapped_column(JSON, default=list)
+    num_personas: Mapped[int] = mapped_column(Integer, default=3)       # how many testers (1-5)
+    persona_types: Mapped[list] = mapped_column(JSON, default=list)     # optional requested types
     # Lifecycle
     variant: Mapped[str] = mapped_column(String, default="base")  # base | improved
     parent_run_id: Mapped[str | None] = mapped_column(String, ForeignKey("runs.id"), nullable=True)

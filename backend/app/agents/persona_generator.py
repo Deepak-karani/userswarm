@@ -52,9 +52,15 @@ _SYSTEM = (
 
 def generate(llm: LLMClient, inputs: dict, n: int = 3) -> list[dict]:
     """Return 3-5 personas as ``{name, description, traits[], goals[]}``."""
-    n = max(3, min(5, n))
+    n = max(1, min(5, n))
+    ptypes = [str(t).strip() for t in (inputs.get("persona_types") or []) if str(t).strip()]
+    types_line = (
+        f"The builder specifically requested these persona TYPES — generate one persona matching each "
+        f"(in order, up to {n}): {', '.join(ptypes)}. "
+        if ptypes else ""
+    )
     user = (
-        f"Generate {n} distinct personas to test this experience. Each persona must be a different human "
+        f"Generate {n} distinct personas to test this experience. {types_line}Each persona must be a different human "
         f"archetype with its own evaluation lens and behavior — e.g. a skeptical/critical buyer, an "
         f"impatient mobile-first skimmer, a thorough detail-oriented researcher, a non-technical "
         f"first-timer, an enthusiastic power user. Make the description and traits encode that persona's "
@@ -71,10 +77,10 @@ def generate(llm: LLMClient, inputs: dict, n: int = 3) -> list[dict]:
                              default={"personas": _DEFAULT_PERSONAS})
     personas = data.get("personas") if isinstance(data, dict) else None
     if not isinstance(personas, list) or not personas:
-        return list(_DEFAULT_PERSONAS)
+        return list(_DEFAULT_PERSONAS)[:n]
 
     cleaned: list[dict] = []
-    for p in personas[:5]:
+    for p in personas[:n]:
         if not isinstance(p, dict):
             continue
         cleaned.append({
@@ -83,4 +89,4 @@ def generate(llm: LLMClient, inputs: dict, n: int = 3) -> list[dict]:
             "traits": [str(t) for t in (p.get("traits") or []) if t],
             "goals": [str(g) for g in (p.get("goals") or []) if g],
         })
-    return cleaned or list(_DEFAULT_PERSONAS)
+    return cleaned or list(_DEFAULT_PERSONAS)[:n]

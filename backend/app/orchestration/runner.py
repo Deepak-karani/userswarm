@@ -40,12 +40,14 @@ class InProcessRunner:
                     "task": run.task,
                     "success_criteria": run.success_criteria,
                     "do_not_click_rules": run.do_not_click_rules or [],
+                    "persona_types": getattr(run, "persona_types", None) or [],
                     "_run_id": run.id,
                 }
 
                 # --- Node: PersonaGenerator ---
                 events.emit(db, run.id, "PersonaGenerator", "running")
-                personas = self._generate_personas(llm, inputs, 3)
+                _n = max(1, min(5, getattr(run, "num_personas", 3) or 3))
+                personas = self._generate_personas(llm, inputs, _n)
                 persona_rows: list[Persona] = []
                 for p in personas:
                     row = Persona(
