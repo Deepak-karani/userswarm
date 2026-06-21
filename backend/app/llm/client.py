@@ -209,5 +209,7 @@ _singleton: LLMClient | None = None
 def get_llm() -> LLMClient:
     global _singleton
     if _singleton is None:
+        from ..integrations import arize as _arize
+        _arize._get_tracer()
         _singleton = LLMClient()
     return _singleton

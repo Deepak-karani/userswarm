@@ -34,7 +34,7 @@ def _metrics(db: Session, run: Run) -> dict:
     # task success rate from reports.
     task_success = _avg([1.0 if (r.report or {}).get("task_success") else 0.0 for r in run.reports])
 
-    return {
+    metrics = {
         "usefulness_rating": useful,
         "evidence_coverage": mean_score("has_evidence"),
         "hallucination_risk": mean_score("hallucination_risk"),
@@ -42,6 +42,12 @@ def _metrics(db: Session, run: Run) -> dict:
         "actionability_pass_rate": pass_rate("actionability"),
         "task_success_rate": task_success,
     }
+
+    for phoenix_eval in ["phoenix_hallucination", "phoenix_qa_correctness", "phoenix_relevance"]:
+        if phoenix_eval in by_name:
+            metrics[phoenix_eval] = mean_score(phoenix_eval)
+
+    return metrics
 
 
 @router.get("/runs/{run_id}/compare")
