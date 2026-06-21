@@ -44,6 +44,9 @@ class BrowserSession:
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=settings.browser_headless)
         self._page = self._browser.new_page()
+        # Bound every Playwright operation so a single action can't stall a run.
+        self._page.set_default_timeout(8000)
+        self._page.set_default_navigation_timeout(20000)
 
     def close(self) -> None:
         for closer in (getattr(self._browser, "close", None), getattr(self._pw, "stop", None)):
@@ -119,29 +122,59 @@ class BrowserSession:
     def get_page_state(self) -> dict:
         return self._state()
 
+    def _contexts(self):
+        """Main page + (cross-origin) frames — Playwright can reach into iframes like an
+        embedded Calendly widget. Capped to keep failed lookups fast."""
+        ctxs = [self._page]
+        try:
+            ctxs += [f for f in self._page.frames if f is not self._page.main_frame]
+        except Exception:
+            pass
+        return ctxs[:6]
+
     def click_by_text(self, text: str) -> dict:
         if safety.is_dangerous(text, self.do_not_click_rules):
             state = self._state([f"blocked destructive click on '{text}'"])
             state["note"] = "blocked: destructive action"
             return state
-        errors: list[str] = []
-        try:
-            self._page.get_by_text(text, exact=False).first.click(timeout=5000)
-            self._page.wait_for_load_state("domcontentloaded", timeout=8000)
-        except Exception:
-            errors.append(f"could not click '{text}'")
-        return self._state(errors)
+        for ctx in self._contexts():
+            for getter in (
+                lambda c: c.get_by_role("button", name=text, exact=False),
+                lambda c: c.get_by_role("link", name=text, exact=False),
+                lambda c: c.get_by_text(text, exact=False),
+            ):
+                try:
+                    loc = getter(ctx).first
+                    if loc.count() == 0:
+                        continue
+                    loc.scroll_into_view_if_needed(timeout=1000)
+                    loc.click(timeout=2500)
+                    try:
+                        self._page.wait_for_load_state("domcontentloaded", timeout=3000)
+                    except Exception:
+                        pass
+                    self._page.wait_for_timeout(500)  # let modals / iframes settle
+                    return self._state()
+                except Exception:
+                    continue
+        return self._state([f"could not click '{text}'"])
 
     def type_into_field(self, label_or_placeholder: str, value: str) -> dict:
-        errors: list[str] = []
-        try:
-            loc = self._page.get_by_placeholder(label_or_placeholder)
-            if loc.count() == 0:
-                loc = self._page.get_by_label(label_or_placeholder)
-            loc.first.fill(value, timeout=5000)
-        except Exception:
-            errors.append(f"could not type into '{label_or_placeholder}'")
-        return self._state(errors)
+        for ctx in self._contexts():
+            for getter in (
+                lambda c: c.get_by_placeholder(label_or_placeholder),
+                lambda c: c.get_by_label(label_or_placeholder),
+                lambda c: c.get_by_role("textbox", name=label_or_placeholder, exact=False),
+            ):
+                try:
+                    loc = getter(ctx).first
+                    if loc.count() == 0:
+                        continue
+                    loc.fill(value, timeout=2500)
+                    return self._state()
+                except Exception:
+                    continue
+        return self._state([f"could not type into '{label_or_placeholder}'"])
 
     def scroll(self, direction: str) -> dict:
         errors: list[str] = []

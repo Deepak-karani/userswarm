@@ -46,8 +46,11 @@ class Settings:
         self.database_url = os.getenv("DATABASE_URL", "").strip()
 
         # --- Browser ---
-        self.max_browser_actions = int(os.getenv("MAX_BROWSER_ACTIONS", "12"))
-        self.min_browser_actions = int(os.getenv("MIN_BROWSER_ACTIONS", "8"))
+        self.max_browser_actions = int(os.getenv("MAX_BROWSER_ACTIONS", "10"))
+        self.min_browser_actions = int(os.getenv("MIN_BROWSER_ACTIONS", "4"))
+        # Per-UXTester wall-clock budget (seconds): the loop stops and writes its report
+        # once exceeded, so a hard site can never make a run crawl for many minutes.
+        self.tester_budget_seconds = int(os.getenv("TESTER_BUDGET_SECONDS", "90"))
         self.browser_headless = _truthy(os.getenv("BROWSER_HEADLESS")) is not False
 
         # --- Mock overrides (None => auto-derive from missing creds) ---

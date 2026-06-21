@@ -34,7 +34,11 @@ class LLMClient:
         self.mock = settings.llm_mock
         self._client = None
         if not self.mock and anthropic is not None:
-            self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            # 60s/request + 2 retries: the SDK default is a 10-minute timeout, which can stall
+            # the agentic browser loop for minutes on a single hung request.
+            self._client = anthropic.Anthropic(
+                api_key=settings.anthropic_api_key, timeout=60.0, max_retries=2
+            )
         # Allows tests/agents to register a custom mock generator.
         self.mock_handler: Callable[[str, str], str] | None = None
 
@@ -43,7 +47,7 @@ class LLMClient:
         self,
         *,
         system: str,
-        user: str,
+        user: str = "",
         tier: str = FAST,
         tools: list[dict] | None = None,
         tool_choice: dict | None = None,

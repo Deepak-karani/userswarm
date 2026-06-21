@@ -66,7 +66,7 @@ class InProcessRunner:
                         "traits": persona_row.traits, "goals": persona_row.goals,
                     }
                     raw, steps = self._ux_test(llm, persona, inputs, run.id, prompt_override)
-                    report = report_critic.validate_and_repair(llm, raw, persona_row.name)
+                    report = self._critique(llm, raw, persona_row.name)
                     return idx, persona_row, report, steps
 
                 results = []
@@ -137,6 +137,16 @@ class InProcessRunner:
         self._agg_engine = "in-process"
         return aggregator.aggregate(llm, report_dicts)
 
+    def _critique(self, llm, raw: dict, persona_name: str) -> dict:
+        """Default report validation/repair (direct LLM). ``AgentspanRunner`` runs this on Agentspan."""
+        self._critic_engine = "in-process"
+        return report_critic.validate_and_repair(llm, raw, persona_name)
+
+    def _improve(self, llm, base_inputs: dict, annotations: list, eval_failures: list) -> dict:
+        """Default prompt improvement (direct LLM). ``AgentspanRunner`` runs this on Agentspan."""
+        self._improve_engine = "in-process"
+        return improver.improve(llm, base_inputs, annotations, eval_failures)
+
     def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
         """Run one UX tester: in-process scripted explorer with its own live BrowserSession.
 
@@ -174,7 +184,7 @@ class InProcessRunner:
             "audience": base_run.audience, "task": base_run.task,
             "success_criteria": base_run.success_criteria,
         }
-        result = improver.improve(llm, base_inputs, annotations, eval_failures)
+        result = self._improve(llm, base_inputs, annotations, eval_failures)
         improved_prompt = result["improved_prompt"]
 
         improved = Run(
@@ -227,6 +237,33 @@ class AgentspanRunner(InProcessRunner):
             return data
         self._agg_engine = "in-process (Agentspan fallback)"
         return super()._aggregate(llm, report_dicts)
+
+    def _critique(self, llm, raw: dict, persona_name: str) -> dict:
+        from ..agents.ux_tester import _normalize
+        from .agentspan_agents import critique_agentspan
+
+        try:
+            data = critique_agentspan(raw, persona_name)
+        except Exception:
+            data = None
+        if data:
+            self._critic_engine = "Agentspan"
+            return _normalize(data, {"name": persona_name})  # local schema guarantee, no extra LLM
+        self._critic_engine = "in-process (Agentspan fallback)"
+        return super()._critique(llm, raw, persona_name)
+
+    def _improve(self, llm, base_inputs: dict, annotations: list, eval_failures: list) -> dict:
+        from .agentspan_agents import improve_agentspan
+
+        try:
+            data = improve_agentspan(base_inputs, annotations, eval_failures)
+        except Exception:
+            data = None
+        if data:
+            self._improve_engine = "Agentspan"
+            return data
+        self._improve_engine = "in-process (Agentspan fallback)"
+        return super()._improve(llm, base_inputs, annotations, eval_failures)
 
 
 def get_runner() -> InProcessRunner:

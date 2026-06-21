@@ -117,3 +117,41 @@ def aggregate_agentspan(reports: list[dict]) -> dict | None:
     data.setdefault("top_friction_points", [])
     data.setdefault("recommendations", [])
     return data
+
+
+def critique_agentspan(raw: dict, persona_name: str) -> dict | None:
+    """Validate/repair a UX report into the strict schema via a real Agentspan agent."""
+    instructions = (
+        "You validate and repair a UX test report so it strictly matches the required schema. "
+        "Output ONLY the corrected JSON object, no prose."
+    )
+    query = (
+        f"Persona: {persona_name}\n"
+        "Required keys: persona(string), task_success(boolean), step_log(string[]), "
+        "friction_points(string[]), evidence(string[]), severity(low|medium|high), "
+        "recommendations(string[]), confidence(number 0-1).\n"
+        "Repair this draft to satisfy them EXACTLY — keep the content, fix structure; friction_points and "
+        "evidence MUST be arrays of plain strings (flatten any objects to a sentence):\n"
+        f"{json.dumps(raw)[:6000]}"
+    )
+    data = _run_agent_json("report_critic", instructions, query)
+    return data if isinstance(data, dict) else None
+
+
+def improve_agentspan(base_inputs: dict, annotations: list[dict], eval_failures: list[dict]) -> dict | None:
+    """Produce an improved UX-tester system prompt from human labels + failed evals, via Agentspan."""
+    instructions = (
+        "You improve the system prompt of a UX-testing agent using human annotation labels and failed "
+        "evaluations. Output ONLY a JSON object, no prose."
+    )
+    query = (
+        f"Product/task context: {json.dumps(base_inputs)[:1500]}\n"
+        f"Human annotation labels: {json.dumps(annotations)[:2500]}\n"
+        f"Failed evaluations: {json.dumps(eval_failures)[:1500]}\n\n"
+        'Return JSON: {"improved_prompt":"<a stronger, specific system prompt for the UX tester>",'
+        '"rationale":"<why these changes address the labels and failures>"}'
+    )
+    data = _run_agent_json("improver", instructions, query)
+    if not isinstance(data, dict) or "improved_prompt" not in data:
+        return None
+    return data
