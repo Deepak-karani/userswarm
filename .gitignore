@@ -30,6 +30,12 @@ backend/userswarm.db
 # Screenshots produced at runtime
 backend/screenshots/*.png
 
+# Agentspan worker browser control/step files (Safe C, parked)
+backend/.uxworker/
+
+# Local UserSwarm skill runtime state
+.userswarm/
+
 # Playwright
 playwright-report/
 test-results/
