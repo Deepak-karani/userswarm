@@ -1,9 +1,11 @@
-"""Browser session abstraction with a real Playwright path and a static fallback.
+"""Browser session — Playwright only (no static fallback).
 
-Playwright is imported lazily *inside* methods so importing this module never
-requires the package. Every tool method returns a uniform observation dict and
-NEVER raises: if Playwright is missing, launch fails, or the site blocks the
-bot, we fall back to an ``httpx`` GET + light regex parse (``note="static-fallback"``).
+Each UX tester thread constructs its own ``BrowserSession`` (Playwright sync is not
+thread-safe across sessions). Construction launches a real headless Chromium; if
+that fails the constructor RAISES (the run surfaces a real error instead of silently
+degrading). Individual tool actions capture their own errors into the observation's
+``errors`` list — that's genuine browser behavior (element not found, nav timeout),
+not a fallback.
 """
 from __future__ import annotations
 
@@ -14,7 +16,6 @@ from ..config import settings
 from . import safety
 
 _VISIBLE_TEXT_CAP = 1500
-
 _SCREENSHOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "screenshots"))
 
 
@@ -23,67 +24,9 @@ def _truncate(text: str, cap: int = _VISIBLE_TEXT_CAP) -> str:
     return text if len(text) <= cap else text[:cap] + "…"
 
 
-def _static_fetch(url: str) -> dict:
-    """Fallback: fetch + regex-parse a page when Playwright is unavailable."""
-    try:
-        import httpx
-
-        resp = httpx.get(url, follow_redirects=True, timeout=15.0,
-                         headers={"User-Agent": "Mozilla/5.0 (UserSwarm static-fallback)"})
-        html = resp.text
-    except Exception as exc:  # network blocked / offline
-        return {
-            "url": url, "title": "", "visible_text": "",
-            "buttons": [], "inputs": [], "errors": [f"fetch failed: {exc}"],
-            "screenshot_path": None, "note": "static-fallback",
-        }
-
-    title_m = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
-    title = title_m.group(1).strip() if title_m else ""
-
-    buttons = []
-    for m in re.finditer(r"<button[^>]*>(.*?)</button>", html, re.IGNORECASE | re.DOTALL):
-        txt = re.sub(r"<[^>]+>", " ", m.group(1))
-        txt = re.sub(r"\s+", " ", txt).strip()
-        if txt:
-            buttons.append(txt)
-    for m in re.finditer(r'<a\b[^>]*class="[^"]*(?:btn|button|cta)[^"]*"[^>]*>(.*?)</a>',
-                         html, re.IGNORECASE | re.DOTALL):
-        txt = re.sub(r"<[^>]+>", " ", m.group(1))
-        txt = re.sub(r"\s+", " ", txt).strip()
-        if txt:
-            buttons.append(txt)
-    for m in re.finditer(r'<input[^>]*type="(?:submit|button)"[^>]*value="([^"]+)"', html, re.IGNORECASE):
-        buttons.append(m.group(1).strip())
-
-    inputs = []
-    for m in re.finditer(r"<input\b[^>]*>", html, re.IGNORECASE):
-        tag = m.group(0)
-        ph = re.search(r'placeholder="([^"]+)"', tag, re.IGNORECASE)
-        nm = re.search(r'name="([^"]+)"', tag, re.IGNORECASE)
-        label = (ph.group(1) if ph else (nm.group(1) if nm else "")).strip()
-        if label:
-            inputs.append(label)
-
-    stripped = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.IGNORECASE | re.DOTALL)
-    stripped = re.sub(r"<[^>]+>", " ", stripped)
-    stripped = re.sub(r"\s+", " ", stripped).strip()
-
-    return {
-        "url": str(getattr(resp, "url", url)),
-        "title": title,
-        "visible_text": _truncate(stripped),
-        "buttons": buttons[:25],
-        "inputs": inputs[:25],
-        "errors": [],
-        "screenshot_path": None,
-        "note": "static-fallback",
-    }
-
-
 class BrowserSession:
-    """One isolated session. Playwright sync is NOT thread-safe across sessions,
-    so each UX tester thread must construct its own ``BrowserSession``."""
+    """One isolated real-browser session. Raises on construction if Chromium
+    cannot launch — there is no static fallback."""
 
     def __init__(self, run_id: str, do_not_click_rules: list[str] | None = None) -> None:
         self.run_id = run_id
@@ -92,23 +35,17 @@ class BrowserSession:
         self._browser = None
         self._page = None
         self._shot_idx = 0
-        self._static_url: str | None = None  # last url in static mode
-        self._live = self._try_start_live()
+        self._start_live()  # raises on failure — no fallback
 
     # ---- lifecycle ----
-    def _try_start_live(self) -> bool:
-        try:
-            from playwright.sync_api import sync_playwright
+    def _start_live(self) -> None:
+        from playwright.sync_api import sync_playwright
 
-            self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=settings.browser_headless)
-            self._page = self._browser.new_page()
-            return True
-        except Exception:
-            self._teardown_live()
-            return False
+        self._pw = sync_playwright().start()
+        self._browser = self._pw.chromium.launch(headless=settings.browser_headless)
+        self._page = self._browser.new_page()
 
-    def _teardown_live(self) -> None:
+    def close(self) -> None:
         for closer in (getattr(self._browser, "close", None), getattr(self._pw, "stop", None)):
             try:
                 if closer:
@@ -116,14 +53,10 @@ class BrowserSession:
             except Exception:
                 pass
         self._pw = self._browser = self._page = None
-        self._live = False
-
-    def close(self) -> None:
-        self._teardown_live()
 
     # ---- screenshots ----
     def _screenshot(self) -> str | None:
-        if not self._live or self._page is None:
+        if self._page is None:
             return None
         try:
             os.makedirs(_SCREENSHOT_DIR, exist_ok=True)
@@ -134,8 +67,8 @@ class BrowserSession:
         except Exception:
             return None
 
-    # ---- state extraction (live) ----
-    def _live_state(self, note: str = "live") -> dict:
+    # ---- state extraction ----
+    def _state(self, errors: list[str] | None = None) -> dict:
         page = self._page
         try:
             title = page.title()
@@ -169,93 +102,60 @@ class BrowserSession:
             "visible_text": _truncate(body),
             "buttons": buttons[:25],
             "inputs": inputs[:25],
-            "errors": [],
+            "errors": errors or [],
             "screenshot_path": self._screenshot(),
-            "note": note,
+            "note": "live",
         }
 
     # ---- tools ----
     def open_url(self, url: str) -> dict:
-        if self._live:
-            try:
-                self._page.goto(url, wait_until="domcontentloaded", timeout=20000)
-                return self._live_state("live")
-            except Exception:
-                # Navigation failed / blocked -> degrade to static.
-                self._teardown_live()
-        self._static_url = url
-        return _static_fetch(url)
+        errors: list[str] = []
+        try:
+            self._page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        except Exception as exc:
+            errors.append(f"navigation error: {str(exc)[:160]}")
+        return self._state(errors)
 
     def get_page_state(self) -> dict:
-        if self._live:
-            try:
-                return self._live_state("live")
-            except Exception:
-                self._teardown_live()
-        if self._static_url:
-            return _static_fetch(self._static_url)
-        return {
-            "url": "", "title": "", "visible_text": "", "buttons": [], "inputs": [],
-            "errors": ["no page open"], "screenshot_path": None, "note": "static-fallback",
-        }
+        return self._state()
 
     def click_by_text(self, text: str) -> dict:
         if safety.is_dangerous(text, self.do_not_click_rules):
-            state = self.get_page_state()
+            state = self._state([f"blocked destructive click on '{text}'"])
             state["note"] = "blocked: destructive action"
-            state["errors"] = list(state.get("errors", [])) + [f"blocked click on '{text}'"]
             return state
-        if self._live:
-            try:
-                self._page.get_by_text(text, exact=False).first.click(timeout=5000)
-                self._page.wait_for_load_state("domcontentloaded", timeout=8000)
-                return self._live_state("live")
-            except Exception:
-                state = self._safe_live_state()
-                state["errors"] = list(state.get("errors", [])) + [f"could not click '{text}'"]
-                return state
-        state = self.get_page_state()
-        state["errors"] = list(state.get("errors", [])) + [f"click '{text}' unavailable in static-fallback"]
-        return state
+        errors: list[str] = []
+        try:
+            self._page.get_by_text(text, exact=False).first.click(timeout=5000)
+            self._page.wait_for_load_state("domcontentloaded", timeout=8000)
+        except Exception:
+            errors.append(f"could not click '{text}'")
+        return self._state(errors)
 
     def type_into_field(self, label_or_placeholder: str, value: str) -> dict:
-        if self._live:
-            try:
-                loc = self._page.get_by_placeholder(label_or_placeholder)
-                if loc.count() == 0:
-                    loc = self._page.get_by_label(label_or_placeholder)
-                loc.first.fill(value, timeout=5000)
-                return self._live_state("live")
-            except Exception:
-                state = self._safe_live_state()
-                state["errors"] = list(state.get("errors", [])) + [f"could not type into '{label_or_placeholder}'"]
-                return state
-        state = self.get_page_state()
-        state["errors"] = list(state.get("errors", [])) + ["type unavailable in static-fallback"]
-        return state
+        errors: list[str] = []
+        try:
+            loc = self._page.get_by_placeholder(label_or_placeholder)
+            if loc.count() == 0:
+                loc = self._page.get_by_label(label_or_placeholder)
+            loc.first.fill(value, timeout=5000)
+        except Exception:
+            errors.append(f"could not type into '{label_or_placeholder}'")
+        return self._state(errors)
 
     def scroll(self, direction: str) -> dict:
-        if self._live:
-            try:
-                delta = 800 if str(direction).lower() != "up" else -800
-                self._page.mouse.wheel(0, delta)
-                return self._live_state("live")
-            except Exception:
-                return self._safe_live_state()
-        return self.get_page_state()
+        errors: list[str] = []
+        try:
+            delta = 800 if str(direction).lower() != "up" else -800
+            self._page.mouse.wheel(0, delta)
+        except Exception:
+            errors.append(f"could not scroll {direction}")
+        return self._state(errors)
 
     def go_back(self) -> dict:
-        if self._live:
-            try:
-                self._page.go_back(wait_until="domcontentloaded", timeout=8000)
-                return self._live_state("live")
-            except Exception:
-                return self._safe_live_state()
-        return self.get_page_state()
-
-    def _safe_live_state(self) -> dict:
+        errors: list[str] = []
         try:
-            return self._live_state("live")
+            self._page.go_back(wait_until="domcontentloaded", timeout=8000)
         except Exception:
-            self._teardown_live()
-            return self.get_page_state()
+            errors.append("could not go back")
+        return self._state(errors)
