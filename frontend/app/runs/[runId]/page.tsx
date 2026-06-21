@@ -83,6 +83,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
   const [run, setRun] = useState<RunOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [improving, setImproving] = useState(false);
+  const [tab, setTab] = useState<"overview" | "results">("overview");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poll = useCallback(async () => {
@@ -228,55 +229,91 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           </div>
         )}
 
-        {/* concise top-of-page summary: 1-line summary + severity + two trust chips */}
-        {(run.aggregate || humanAgreement || humanLikeness) && (
-          <Section
-            title="Summary"
-            right={
-              run.aggregate ? (
-                <SeverityBadge severity={run.aggregate.overall_severity} />
-              ) : undefined
-            }
-          >
-            {run.aggregate?.summary && (
-              <p className="line-clamp-2 text-[15px] leading-relaxed text-fog">
-                {run.aggregate.summary}
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3">
-              <TrustChip
-                label="Terac human agreement"
-                evalResult={humanAgreement}
-              />
-              <TrustChip label="Human-likeness" evalResult={humanLikeness} />
-            </div>
-          </Section>
-        )}
-
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <Section title="Workflow status">
-            <StatusTimeline events={run.events} />
-          </Section>
-
-          <Section title="Arize evals">
-            <EvalScores evals={run.evals} />
-          </Section>
+        {/* tabs — keep results off the overview so the page isn't one long scroll */}
+        <div className="flex gap-1 border-b border-ink-line">
+          {(
+            [
+              ["overview", "Overview"],
+              [
+                "results",
+                `Results${run.reports?.length ? ` · ${run.reports.length}` : ""}`,
+              ],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`-mb-px border-b-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50 ${
+                tab === key
+                  ? "border-heat-ember text-fog"
+                  : "border-transparent text-fog-muted hover:text-fog"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {run.personas?.length > 0 && (
-          <Section title={`Personas (${run.personas.length})`}>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {run.personas.map((p) => (
-                <PersonaCard key={p.id} persona={p} />
-              ))}
+        {tab === "overview" && (
+          <div className="space-y-6">
+            {(run.aggregate || humanAgreement || humanLikeness) && (
+              <Section
+                title="Summary"
+                right={
+                  run.aggregate ? (
+                    <SeverityBadge severity={run.aggregate.overall_severity} />
+                  ) : undefined
+                }
+              >
+                {run.aggregate?.summary && (
+                  <p className="line-clamp-2 text-[15px] leading-relaxed text-fog">
+                    {run.aggregate.summary}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <TrustChip
+                    label="Terac human agreement"
+                    evalResult={humanAgreement}
+                  />
+                  <TrustChip label="Human-likeness" evalResult={humanLikeness} />
+                </div>
+              </Section>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+              <Section title="Workflow status">
+                <StatusTimeline events={run.events} />
+              </Section>
+              <Section title="Arize evals">
+                <EvalScores evals={run.evals} />
+              </Section>
             </div>
-          </Section>
+
+            {run.personas?.length > 0 && (
+              <Section title={`Personas (${run.personas.length})`}>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {run.personas.map((p) => (
+                    <PersonaCard key={p.id} persona={p} />
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-fog-faint">
+                  See what each tester found in the{" "}
+                  <button
+                    onClick={() => setTab("results")}
+                    className="font-medium text-cool hover:underline"
+                  >
+                    Results tab →
+                  </button>
+                </p>
+              </Section>
+            )}
+          </div>
         )}
 
-        {run.reports?.length > 0 ? (
-          <Section title={`Per-persona reports (${run.reports.length})`}>
-            <div className="space-y-4">
-              {run.reports.map((r) => (
+        {tab === "results" && (
+          <div className="space-y-4">
+            {run.reports?.length > 0 ? (
+              run.reports.map((r) => (
                 <ReportCard
                   key={r.id}
                   report={r}
@@ -285,15 +322,15 @@ export default function RunPage({ params }: { params: { runId: string } }) {
                     personaById(r.persona_id)?.name || r.report?.persona
                   }
                 />
-              ))}
-            </div>
-          </Section>
-        ) : (
-          isRunning && (
-            <p className="text-center font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
-              AI users are exploring your product…
-            </p>
-          )
+              ))
+            ) : (
+              <p className="py-10 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
+                {isRunning
+                  ? "AI users are exploring your product…"
+                  : "No reports."}
+              </p>
+            )}
+          </div>
         )}
       </div>
       <PitchFooter />
