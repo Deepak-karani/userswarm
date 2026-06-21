@@ -25,11 +25,25 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 *.db
+backend/userswarm.db
+
+# Screenshots produced at runtime
+backend/screenshots/*.png
+
+# Agentspan worker browser control/step files (Safe C, parked)
+backend/.uxworker/
+
+# Local UserSwarm skill runtime state
+.userswarm/
 
 # Playwright
 playwright-report/
 test-results/
 .cache/
+
+# Plugin/runtime local stores
+agentdb.rvf
+agentdb.rvf.lock
 
 # OS / editor
 .DS_Store
