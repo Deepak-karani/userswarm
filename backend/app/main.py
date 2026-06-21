@@ -26,6 +26,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _startup() -> None:
+    # Live-only: fail fast if any required credential / Orkes URL is missing,
+    # instead of silently booting into a mock path.
+    settings.require_live()
     init_db()
 
 

@@ -193,6 +193,20 @@ export function getCompare(id: string): Promise<CompareOut> {
   return http<CompareOut>(`/runs/${id}/compare`);
 }
 
+export type ModeState = "live" | "mock" | string;
+
+export interface Modes {
+  llm: ModeState;
+  agentspan: ModeState;
+  arize: ModeState;
+  terac: ModeState;
+  db: string;
+}
+
+export function getModes(): Promise<{ app: string; modes: Modes }> {
+  return http<{ app: string; modes: Modes }>("/");
+}
+
 export function staticUrl(path?: string | null): string | null {
   if (!path) return null;
   if (/^https?:\/\//.test(path)) return path;

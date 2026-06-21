@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import LiveStatus from "@/components/LiveStatus";
 
 export const metadata: Metadata = {
   title: "UserSwarm — release a swarm of AI users on your product",
@@ -29,10 +30,11 @@ export default function RootLayout({
                 UserSwarm
               </span>
             </Link>
-            <nav className="flex items-center gap-5 font-mono text-xs uppercase tracking-widest text-fog-muted">
-              <Link href="/" className="transition hover:text-cool">
+            <nav className="flex items-center gap-4 font-mono text-xs uppercase tracking-widest text-fog-muted">
+              <Link href="/" className="hidden transition hover:text-cool sm:inline">
                 New run
               </Link>
+              <LiveStatus />
             </nav>
           </div>
         </header>

@@ -1,8 +1,7 @@
-"""Anthropic LLM wrapper with JSON helpers, retries, and offline mock mode.
+"""Anthropic LLM wrapper with JSON helpers and retries.
 
-Real path uses the official ``anthropic`` SDK. When ANTHROPIC_API_KEY is absent
-(``settings.llm_mock``), every call returns canned-but-plausible output so the
-entire workflow runs offline. Two model tiers:
+LIVE only — uses the official ``anthropic`` SDK. There is no mock path: a missing
+ANTHROPIC_API_KEY or a missing SDK raises at construction time. Two model tiers:
   - fast  (claude-sonnet-4-6): per-persona UX testers — many cheap calls.
   - smart (claude-opus-4-8):   aggregator / improver / LLM-judge evals.
 """
@@ -15,10 +14,7 @@ from typing import Any, Callable
 
 from ..config import settings
 
-try:  # SDK is optional in pure mock mode.
-    import anthropic
-except Exception:  # pragma: no cover
-    anthropic = None  # type: ignore
+import anthropic
 
 
 FAST = "fast"
@@ -31,16 +27,15 @@ def _model(tier: str) -> str:
 
 class LLMClient:
     def __init__(self) -> None:
-        self.mock = settings.llm_mock
-        self._client = None
-        if not self.mock and anthropic is not None:
-            # 60s/request + 2 retries: the SDK default is a 10-minute timeout, which can stall
-            # the agentic browser loop for minutes on a single hung request.
-            self._client = anthropic.Anthropic(
-                api_key=settings.anthropic_api_key, timeout=60.0, max_retries=2
+        if not settings.anthropic_api_key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY is required (live-only mode; mock fallback removed)."
             )
-        # Allows tests/agents to register a custom mock generator.
-        self.mock_handler: Callable[[str, str], str] | None = None
+        # 60s/request + 2 retries: the SDK default is a 10-minute timeout, which can stall
+        # the agentic browser loop for minutes on a single hung request.
+        self._client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key, timeout=60.0, max_retries=2
+        )
 
     # ---- low-level ----
     def complete(
@@ -54,10 +49,7 @@ class LLMClient:
         max_tokens: int = 2048,
         messages: list[dict] | None = None,
     ) -> Any:
-        """Return the raw Anthropic message (or a mock stand-in)."""
-        if self.mock or self._client is None:
-            return self._mock_message(system, user, tools)
-
+        """Return the raw Anthropic message."""
         kwargs: dict[str, Any] = {
             "model": _model(tier),
             "max_tokens": max_tokens,
@@ -103,15 +95,9 @@ class LLMClient:
                 time.sleep(0.8 * (i + 1))
         raise last  # type: ignore[misc]
 
-    def _mock_message(self, system: str, user: str, tools: list[dict] | None):
-        if self.mock_handler is not None:
-            return _FakeMessage(self.mock_handler(system, user))
-        return _FakeMessage(_mock_text(system, user, tools))
-
 
 # ---------- module-level utilities ----------
 def _text_of(msg: Any) -> str:
-    # Works for both real Anthropic messages and _FakeMessage.
     parts = []
     for block in getattr(msg, "content", []) or []:
         if getattr(block, "type", None) == "text":
@@ -138,69 +124,6 @@ def extract_json(text: str) -> dict | None:
         except Exception:
             return None
     return None
-
-
-# ---------- mock content ----------
-class _FakeBlock:
-    type = "text"
-
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-
-class _FakeMessage:
-    def __init__(self, text: str) -> None:
-        self.content = [_FakeBlock(text)]
-        self.stop_reason = "end_turn"
-
-
-def _mock_text(system: str, user: str, tools: list[dict] | None) -> str:
-    """Heuristic canned output keyed on what the caller is asking for."""
-    blob = (system + " " + user).lower()
-    if "persona" in blob and "generate" in blob:
-        return json.dumps({
-            "personas": [
-                {"name": "Skeptical First-Timer", "description": "Busy newcomer, low patience, scans before reading.",
-                 "traits": ["impatient", "mobile-first", "privacy-conscious"], "goals": ["finish the task fast"]},
-                {"name": "Detail-Oriented Researcher", "description": "Reads everything, compares options.",
-                 "traits": ["thorough", "skeptical"], "goals": ["understand before committing"]},
-                {"name": "Distracted Multitasker", "description": "Half-paying attention, easily lost.",
-                 "traits": ["distracted", "error-prone"], "goals": ["complete with minimal thinking"]},
-            ]
-        })
-    if "improve" in blob and "prompt" in blob:
-        return json.dumps({
-            "improved_prompt": (
-                "You are a rigorous UX tester. For EVERY friction point you MUST cite concrete "
-                "on-page evidence (exact button label, visible text, or screenshot step). Never invent "
-                "UI that you did not observe. Mark task_success only if the success criteria are literally met. "
-                "Give specific, actionable recommendations tied to the observed friction."
-            ),
-            "rationale": "Human labels flagged vague reports and unsupported claims; this enforces evidence + specificity.",
-        })
-    if any(k in blob for k in ["actionability", "hallucination", "judge", "evaluate"]):
-        return json.dumps({"score": 0.7, "passed": True,
-                           "explanation": "Mock eval: recommendations are mostly specific; minor unsupported claim."})
-    if "aggregate" in blob or "combine" in blob:
-        return json.dumps({
-            "summary": "Across personas, onboarding is reachable but the value of the recommendation is unclear and CTAs are ambiguous.",
-            "overall_severity": "medium",
-            "top_friction_points": ["Primary CTA label is vague", "No progress indicator during onboarding",
-                                    "Recommendation lacks explanation"],
-            "recommendations": ["Rename CTA to a verb-first action", "Add a step indicator", "Explain why the recommendation fits"],
-        })
-    # Default: a strict UX report.
-    return json.dumps({
-        "persona": "Mock Persona",
-        "task_success": True,
-        "step_log": ["open_url -> landing page", "click_by_text 'Get Started'", "type_into_field email",
-                     "get_page_state -> recommendation shown"],
-        "friction_points": ["CTA label 'Go' is ambiguous", "No confirmation after submitting email"],
-        "evidence": ["Visible button text was 'Go' with no context", "Page changed with no success message"],
-        "severity": "medium",
-        "recommendations": ["Use a descriptive CTA", "Show a success confirmation"],
-        "confidence": 0.62,
-    })
 
 
 _singleton: LLMClient | None = None

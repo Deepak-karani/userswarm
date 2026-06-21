@@ -1,8 +1,8 @@
 """Workflow runner: the persona -> fan-out UX testers -> aggregate -> eval DAG.
 
-``InProcessRunner`` executes the DAG directly. ``AgentspanRunner`` tries the
-Agentspan SDK (lazy import) and falls back to in-process if it is unavailable.
-``get_runner()`` picks based on ``settings.agentspan_mock``.
+``InProcessRunner`` holds the DAG logic and runs the (browser-driving) UXTester
+in-process. ``AgentspanRunner`` runs the tool-less reasoning agents on the live
+Agentspan / Orkes runtime with NO fallback — ``get_runner()`` always returns it.
 """
 from __future__ import annotations
 
@@ -209,13 +209,17 @@ class InProcessRunner:
 
 
 class AgentspanRunner(InProcessRunner):
-    """Runs the pure-LLM reasoning agents (PersonaGenerator, Aggregator) on the Agentspan
-    durable runtime; the browser-driving UXTester stays in-process.
+    """Runs the pure-LLM reasoning agents (PersonaGenerator, Aggregator, ReportCritic,
+    Improver) on the Agentspan / Orkes durable runtime. The browser-driving UXTester
+    stays in-process.
 
     Agentspan executes every tool in a separate Conductor worker process, which cannot
     share a live in-process Playwright session — so only the tool-less reasoning agents
-    run on Agentspan. Each Agentspan call has a join-timeout and falls back to the direct
-    LLM path, so a run can never hang or fail for infrastructure reasons.
+    run on Agentspan; the UXTester runs in-process (real execution, not a mock).
+
+    LIVE only: there is NO in-process fallback for the reasoning agents. If Orkes is
+    unreachable or returns no usable result, the run fails loudly rather than silently
+    degrading to a direct-LLM path — so "is it actually Orkes?" always has a real answer.
     """
 
     _engine = "Agentspan"
@@ -223,72 +227,60 @@ class AgentspanRunner(InProcessRunner):
     def _generate_personas(self, llm, inputs: dict, n: int):
         from .agentspan_agents import generate_personas_agentspan
 
-        try:
-            data = generate_personas_agentspan(inputs, n)
-        except Exception:
-            data = None
-        if data:
-            self._persona_engine = "Agentspan"
-            return data
-        self._persona_engine = "in-process (Agentspan fallback)"
-        return super()._generate_personas(llm, inputs, n)
+        data = generate_personas_agentspan(inputs, n)
+        if not data:
+            raise RuntimeError("Agentspan/Orkes persona generation failed (no fallback).")
+        self._persona_engine = "Agentspan"
+        return data
 
     def _aggregate(self, llm, report_dicts: list[dict]) -> dict:
         from .agentspan_agents import aggregate_agentspan
 
-        try:
-            data = aggregate_agentspan(report_dicts)
-        except Exception:
-            data = None
-        if data:
-            self._agg_engine = "Agentspan"
-            return data
-        self._agg_engine = "in-process (Agentspan fallback)"
-        return super()._aggregate(llm, report_dicts)
+        data = aggregate_agentspan(report_dicts)
+        if not data:
+            raise RuntimeError("Agentspan/Orkes aggregation failed (no fallback).")
+        self._agg_engine = "Agentspan"
+        return data
 
     def _critique(self, llm, raw: dict, persona_name: str) -> dict:
         from ..agents.ux_tester import _normalize
         from .agentspan_agents import critique_agentspan
 
-        try:
-            data = critique_agentspan(raw, persona_name)
-        except Exception:
-            data = None
-        if data:
-            self._critic_engine = "Agentspan"
-            # F2: friction quotes are the user's voice from the tester; never let the critic
-            # blank them. Carry them through deterministically (the F1 would_abandon flag lives
-            # inside each friction item, so it is preserved here too).
-            if raw.get("friction"):
-                data["friction"] = raw["friction"]
-            # F2/F1: persona_take and report-level abandoned are new fields the critic may strip.
-            # Carry them through deterministically from the raw tester output.
-            data["persona_take"] = raw.get("persona_take", data.get("persona_take", ""))
-            data["abandoned"] = raw.get("abandoned", data.get("abandoned", False))
-            return _normalize(data, {"name": persona_name})  # local schema guarantee, no extra LLM
-        self._critic_engine = "in-process (Agentspan fallback)"
-        return super()._critique(llm, raw, persona_name)
+        data = critique_agentspan(raw, persona_name)
+        if not data:
+            raise RuntimeError("Agentspan/Orkes report critique failed (no fallback).")
+        self._critic_engine = "Agentspan"
+        # F2: friction quotes are the user's voice from the tester; never let the critic
+        # blank them. Carry them through deterministically (the F1 would_abandon flag lives
+        # inside each friction item, so it is preserved here too).
+        if raw.get("friction"):
+            data["friction"] = raw["friction"]
+        # F2/F1: persona_take and report-level abandoned are new fields the critic may strip.
+        # Carry them through deterministically from the raw tester output.
+        data["persona_take"] = raw.get("persona_take", data.get("persona_take", ""))
+        data["abandoned"] = raw.get("abandoned", data.get("abandoned", False))
+        return _normalize(data, {"name": persona_name})  # local schema guarantee, no extra LLM
 
     def _improve(self, llm, base_inputs: dict, annotations: list, eval_failures: list) -> dict:
         from .agentspan_agents import improve_agentspan
 
-        try:
-            data = improve_agentspan(base_inputs, annotations, eval_failures)
-        except Exception:
-            data = None
-        if data:
-            self._improve_engine = "Agentspan"
-            return data
-        self._improve_engine = "in-process (Agentspan fallback)"
-        return super()._improve(llm, base_inputs, annotations, eval_failures)
+        data = improve_agentspan(base_inputs, annotations, eval_failures)
+        if not data:
+            raise RuntimeError("Agentspan/Orkes prompt improvement failed (no fallback).")
+        self._improve_engine = "Agentspan"
+        return data
 
     # UXTester stays in-process (inherited from InProcessRunner): Agentspan workers are
     # thread-unsafe for a live Playwright browser. The CDP shared-browser path is
     # spike-validated but intentionally not wired here.
 
 
-def get_runner() -> InProcessRunner:
-    return InProcessRunner() if settings.agentspan_mock else AgentspanRunner()
+def get_runner() -> AgentspanRunner:
+    """Always the live Orkes-backed runner. ``require_live()`` has already verified the
+    Orkes server URL is configured; an unreachable server now surfaces as a run error
+    instead of a silent in-process fallback."""
+    settings.require_live()
+    return AgentspanRunner()
 
 
 # Public re-exports used by the thin workflow facade / routers.
