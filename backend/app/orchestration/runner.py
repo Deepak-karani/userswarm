@@ -44,7 +44,7 @@ class InProcessRunner:
 
                 # --- Node: PersonaGenerator ---
                 events.emit(db, run.id, "PersonaGenerator", "running")
-                personas = persona_generator.generate(llm, inputs, n=3)
+                personas = self._generate_personas(llm, inputs, 3)
                 persona_rows: list[Persona] = []
                 for p in personas:
                     row = Persona(
@@ -55,7 +55,8 @@ class InProcessRunner:
                     db.add(row)
                     persona_rows.append(row)
                 db.commit()
-                events.emit(db, run.id, "PersonaGenerator", "done", f"{len(persona_rows)} personas")
+                events.emit(db, run.id, "PersonaGenerator", "done",
+                            f"{len(persona_rows)} personas ({getattr(self, '_persona_engine', 'in-process')})")
 
                 # --- Node: UXTester fan-out (each gets its OWN BrowserSession) ---
                 def _test(args):
@@ -95,7 +96,7 @@ class InProcessRunner:
 
                 # --- Node: Aggregator ---
                 events.emit(db, run.id, "Aggregator", "running")
-                agg = aggregator.aggregate(llm, report_dicts)
+                agg = self._aggregate(llm, report_dicts)
                 db.add(AggregateReport(
                     id=_new_id(), run_id=run.id, summary=agg["summary"],
                     overall_severity=agg["overall_severity"],
@@ -103,7 +104,7 @@ class InProcessRunner:
                     recommendations=agg["recommendations"],
                 ))
                 db.commit()
-                events.emit(db, run.id, "Aggregator", "done")
+                events.emit(db, run.id, "Aggregator", "done", getattr(self, "_agg_engine", "in-process"))
 
                 # --- Node: Evals ---
                 events.emit(db, run.id, "Evals", "running")
@@ -124,10 +125,23 @@ class InProcessRunner:
                     pass
         return run
 
-    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
-        """Run one UX tester. Default: in-process scripted explorer with its own BrowserSession.
+    _engine = "in-process"
 
-        ``AgentspanRunner`` overrides this to run the same tools as a real Agentspan agent.
+    def _generate_personas(self, llm, inputs: dict, n: int):
+        """Default persona generation (direct LLM). ``AgentspanRunner`` runs this on Agentspan."""
+        self._persona_engine = "in-process"
+        return persona_generator.generate(llm, inputs, n=n)
+
+    def _aggregate(self, llm, report_dicts: list[dict]) -> dict:
+        """Default aggregation (direct LLM). ``AgentspanRunner`` runs this on Agentspan."""
+        self._agg_engine = "in-process"
+        return aggregator.aggregate(llm, report_dicts)
+
+    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
+        """Run one UX tester: in-process scripted explorer with its own live BrowserSession.
+
+        The browser tester stays in-process in BOTH runners: Agentspan executes tools in
+        separate worker processes that cannot share a live Playwright session.
         """
         browser = BrowserSession(run_id, do_not_click_rules=inputs.get("do_not_click_rules") or [])
         try:
@@ -177,22 +191,42 @@ class InProcessRunner:
 
 
 class AgentspanRunner(InProcessRunner):
-    """Runs each UX tester as a real Agentspan agent (durable workflow server).
+    """Runs the pure-LLM reasoning agents (PersonaGenerator, Aggregator) on the Agentspan
+    durable runtime; the browser-driving UXTester stays in-process.
 
-    The DAG (persona-gen -> fan-out testers -> aggregate -> evals) is inherited from
-    ``InProcessRunner``; only the per-persona tester is swapped to Agentspan. If the
-    Agentspan SDK/server is unavailable or errors, it falls back to the scripted
-    in-process tester so a run never fails for infrastructure reasons.
+    Agentspan executes every tool in a separate Conductor worker process, which cannot
+    share a live in-process Playwright session — so only the tool-less reasoning agents
+    run on Agentspan. Each Agentspan call has a join-timeout and falls back to the direct
+    LLM path, so a run can never hang or fail for infrastructure reasons.
     """
 
-    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
-        try:
-            from .agentspan_agents import run_ux_test_agentspan
+    _engine = "Agentspan"
 
-            return run_ux_test_agentspan(llm, persona, inputs, run_id, prompt_override)
+    def _generate_personas(self, llm, inputs: dict, n: int):
+        from .agentspan_agents import generate_personas_agentspan
+
+        try:
+            data = generate_personas_agentspan(inputs, n)
         except Exception:
-            # SDK missing, server unreachable, or runtime error -> safe fallback.
-            return super()._ux_test(llm, persona, inputs, run_id, prompt_override)
+            data = None
+        if data:
+            self._persona_engine = "Agentspan"
+            return data
+        self._persona_engine = "in-process (Agentspan fallback)"
+        return super()._generate_personas(llm, inputs, n)
+
+    def _aggregate(self, llm, report_dicts: list[dict]) -> dict:
+        from .agentspan_agents import aggregate_agentspan
+
+        try:
+            data = aggregate_agentspan(report_dicts)
+        except Exception:
+            data = None
+        if data:
+            self._agg_engine = "Agentspan"
+            return data
+        self._agg_engine = "in-process (Agentspan fallback)"
+        return super()._aggregate(llm, report_dicts)
 
 
 def get_runner() -> InProcessRunner:
