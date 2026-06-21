@@ -149,6 +149,8 @@ export default function RunPage({ params }: { params: { runId: string } }) {
   const showCompare = Boolean(run.parent_run_id);
   const personaById = (id: string) =>
     run.personas?.find((p) => p.id === id);
+  const aggFriction = run.aggregate?.top_friction_points ?? [];
+  const aggRecos = run.aggregate?.recommendations ?? [];
 
   return (
     <>
@@ -266,11 +268,61 @@ export default function RunPage({ params }: { params: { runId: string } }) {
                 }
               >
                 {run.aggregate?.summary && (
-                  <p className="line-clamp-2 text-[15px] leading-relaxed text-fog">
+                  <p className="text-[15px] leading-relaxed text-fog">
                     {run.aggregate.summary}
                   </p>
                 )}
-                <div className="mt-4 flex flex-wrap gap-3">
+
+                {/* At-a-glance verdict strip: how the swarm fared overall. */}
+                {run.reports?.length > 0 && (
+                  <div className="mt-4">
+                    <VerdictStrip reports={run.reports} />
+                  </div>
+                )}
+
+                {/* Actionable takeaways surfaced without expanding any card. */}
+                {(aggFriction.length > 0 || aggRecos.length > 0) && (
+                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                    {aggFriction.length > 0 && (
+                      <div>
+                        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-heat-med">
+                          Top friction
+                        </p>
+                        <ul className="space-y-1.5">
+                          {aggFriction.slice(0, 4).map((f, i) => (
+                            <li
+                              key={i}
+                              className="flex gap-2 text-sm leading-snug text-fog"
+                            >
+                              <span className="mt-0.5 font-mono text-heat-med">•</span>
+                              <span className="flex-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {aggRecos.length > 0 && (
+                      <div>
+                        <p className="mb-2 font-mono text-[11px] uppercase tracking-[0.18em] text-cool">
+                          Recommended fixes
+                        </p>
+                        <ul className="space-y-1.5">
+                          {aggRecos.slice(0, 4).map((f, i) => (
+                            <li
+                              key={i}
+                              className="flex gap-2 text-sm leading-snug text-fog"
+                            >
+                              <span className="mt-0.5 font-mono text-cool">→</span>
+                              <span className="flex-1">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-wrap gap-3">
                   <TrustChip
                     label="Terac human agreement"
                     evalResult={humanAgreement}
@@ -371,6 +423,46 @@ function verdict(r: Report["report"]): {
     label: "passed",
     className: "bg-cool/10 text-cool ring-cool/30",
   };
+}
+
+// At-a-glance tally of how the swarm fared: succeeded / struggled / abandoned.
+function VerdictStrip({ reports }: { reports: Report[] }) {
+  const counts = { succeeded: 0, struggled: 0, abandoned: 0, passed: 0 };
+  for (const r of reports) {
+    const v = verdict(r.report).label as keyof typeof counts;
+    if (v in counts) counts[v] += 1;
+  }
+  const cells: { label: string; n: number; cls: string }[] = [
+    { label: "succeeded", n: counts.succeeded + counts.passed, cls: "text-cool" },
+    { label: "struggled", n: counts.struggled, cls: "text-heat-med" },
+    { label: "abandoned", n: counts.abandoned, cls: "text-heat-high" },
+  ];
+  const total = reports.length;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {cells.map((c) => (
+        <div
+          key={c.label}
+          className="flex items-baseline gap-1.5 rounded-lg border border-ink-line bg-ink-900/40 px-3 py-2"
+        >
+          <span className={`font-mono text-lg font-semibold tabular-nums ${c.cls}`}>
+            {c.n}
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-fog-muted">
+            {c.label}
+          </span>
+        </div>
+      ))}
+      <div className="flex items-baseline gap-1.5 rounded-lg border border-ink-line bg-ink-900/40 px-3 py-2">
+        <span className="font-mono text-lg font-semibold tabular-nums text-fog">
+          {total}
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-fog-muted">
+          testers
+        </span>
+      </div>
+    </div>
+  );
 }
 
 // Pull the one-word archetype that makes each tester feel distinct.

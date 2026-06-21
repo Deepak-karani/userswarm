@@ -142,8 +142,7 @@ def run_test(
     run_id: str,
     prompt_override: str | None,
 ) -> tuple[dict, list[dict]]:
-    if llm.mock:
-        return _scripted_test(llm, persona, inputs, browser, prompt_override)
+    # Live-only: always run the real Claude tool-use loop (mock fallback removed).
     return _agentic_test(llm, persona, inputs, browser, prompt_override)
 
 

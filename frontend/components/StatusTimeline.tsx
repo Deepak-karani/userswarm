@@ -1,5 +1,15 @@
 import { RunEvent } from "@/lib/api";
 
+// Which durable runtime executed this node, parsed from the event detail.
+// "Agentspan" = the Orkes/Agentspan worker; otherwise it ran in-process.
+function engineBadge(detail?: string): string | null {
+  if (!detail) return null;
+  const d = detail.toLowerCase();
+  if (d.includes("agentspan")) return "Orkes";
+  if (d.includes("in-process")) return "in-process";
+  return null;
+}
+
 // Status as instrument readout: cool = working, heat = friction/error.
 function dotColor(status: string): string {
   const s = status.toLowerCase();
@@ -47,6 +57,17 @@ export default function StatusTimeline({ events }: { events: RunEvent[] }) {
             >
               {e.status}
             </span>
+            {engineBadge(e.detail) && (
+              <span
+                className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] ring-1 ring-inset ${
+                  engineBadge(e.detail) === "Orkes"
+                    ? "bg-cool/10 text-cool ring-cool/30"
+                    : "bg-white/5 text-fog-faint ring-ink-line"
+                }`}
+              >
+                {engineBadge(e.detail)}
+              </span>
+            )}
           </div>
           {e.detail && (
             <p className="mt-0.5 text-sm text-fog-muted">{e.detail}</p>

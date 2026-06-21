@@ -1,9 +1,9 @@
-"""Central configuration + per-sponsor mock-mode detection.
+"""Central configuration.
 
-Every sponsor integration (Anthropic, Agentspan, Arize, Terac) has a *real* code
-path and a *mock* code path behind one interface. Mock mode auto-enables when the
-relevant credential / server is absent, so the whole demo runs fully offline.
-Set the matching ``*_MOCK`` env var to force a mode either way.
+Anthropic (LLM), Agentspan (Orkes), and Arize run LIVE only — there is no mock
+fallback. Missing credentials / an unreachable Orkes server raise at startup
+rather than silently degrading to a fake path. Terac has no live backend yet
+(unimplemented endpoint), so it still produces synthetic annotation labels.
 """
 from __future__ import annotations
 
@@ -21,6 +21,10 @@ def _truthy(value: str | None) -> bool | None:
     if value is None:
         return None
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+class ConfigError(RuntimeError):
+    """Raised when a required live credential / server URL is missing."""
 
 
 class Settings:
@@ -53,42 +57,44 @@ class Settings:
         self.tester_budget_seconds = int(os.getenv("TESTER_BUDGET_SECONDS", "90"))
         self.browser_headless = _truthy(os.getenv("BROWSER_HEADLESS")) is not False
 
-        # --- Mock overrides (None => auto-derive from missing creds) ---
-        self._llm_mock = _truthy(os.getenv("LLM_MOCK"))
-        self._agentspan_mock = _truthy(os.getenv("AGENTSPAN_MOCK"))
-        self._arize_mock = _truthy(os.getenv("ARIZE_MOCK"))
-        self._terac_mock = _truthy(os.getenv("TERAC_MOCK"))
-
-    # Mock flags: explicit override wins, else auto-derive.
-    @property
-    def llm_mock(self) -> bool:
-        return self._llm_mock if self._llm_mock is not None else not self.anthropic_api_key
-
-    @property
-    def agentspan_mock(self) -> bool:
-        return self._agentspan_mock if self._agentspan_mock is not None else not self.agentspan_server_url
-
-    @property
-    def arize_mock(self) -> bool:
-        return self._arize_mock if self._arize_mock is not None else not (self.arize_api_key and self.arize_space_id)
+    # ------------------------------------------------------------------ #
+    # Live-only enforcement. No mock fallback: a missing credential is a
+    # hard error, not a silent switch to fake output.
+    # ------------------------------------------------------------------ #
+    def require_live(self) -> None:
+        """Fail fast if any LIVE-only integration is unconfigured."""
+        missing: list[str] = []
+        if not self.anthropic_api_key:
+            missing.append("ANTHROPIC_API_KEY (LLM)")
+        if not self.agentspan_server_url:
+            missing.append("AGENTSPAN_SERVER_URL (Orkes/Agentspan)")
+        if not (self.arize_api_key and self.arize_space_id):
+            missing.append("ARIZE_API_KEY + ARIZE_SPACE_ID (Arize)")
+        if missing:
+            raise ConfigError(
+                "Live-only mode requires: " + ", ".join(missing) +
+                ". Mock fallbacks have been removed; set these in .env."
+            )
 
     @property
     def terac_mock(self) -> bool:
-        return self._terac_mock if self._terac_mock is not None else not self.terac_api_key
+        """Terac is the one integration without a live backend yet."""
+        override = _truthy(os.getenv("TERAC_MOCK"))
+        return override if override is not None else not self.terac_api_key
 
     @property
     def effective_database_url(self) -> str:
         if self.database_url:
             return self.database_url
-        # SQLite fallback keeps the "runs offline" guarantee.
+        # SQLite fallback keeps local persistence working without Postgres.
         path = os.path.join(os.path.dirname(__file__), "..", "userswarm.db")
         return f"sqlite:///{os.path.abspath(path)}"
 
     def mode_summary(self) -> dict[str, str]:
         return {
-            "llm": "mock" if self.llm_mock else "live",
-            "agentspan": "mock" if self.agentspan_mock else "live",
-            "arize": "mock" if self.arize_mock else "live",
+            "llm": "live",
+            "agentspan": "live",
+            "arize": "live",
             "terac": "mock" if self.terac_mock else "live",
             "db": "sqlite" if not self.database_url else "postgres",
         }
