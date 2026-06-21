@@ -31,5 +31,7 @@ def run_all_evals(db, run, llm) -> None:
     except Exception:
         db.rollback()
     _persist(db, run.id, None, "human_agreement", agreement.human_agreement(db, run))
+    # F3: human-likeness — do the agents fail where real humans fail?
+    _persist(db, run.id, None, "human_likeness", agreement.human_likeness(db, run))
 
     db.commit()

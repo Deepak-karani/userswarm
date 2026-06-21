@@ -41,10 +41,18 @@ _AGENT_SYSTEM = (
     "When done or stuck, call finish_report. Rules: set task_success true if the success criteria were met OR you "
     "reached the final ready-to-submit confirmation; cite concrete on-page evidence for every friction point; "
     "never invent UI you did not observe; give specific, actionable recommendations. "
-    "Also fill `friction`: a list of {issue, quote, severity}. The `quote` is REQUIRED and must be NON-EMPTY: "
-    "a vivid first-person sentence in the persona's own voice reacting to that friction (e.g. \"I can't tell "
-    "what this button does\" or \"Wait, where did the menu go?\"). Even if the page is broken or empty, write "
-    "what this persona would actually mutter. Never leave a quote blank."
+    "Also fill `friction`: a list of {issue, quote, severity, would_abandon}. The `quote` is REQUIRED and "
+    "must be NON-EMPTY: a vivid first-person sentence in the persona's own voice reacting to that friction "
+    "(e.g. \"I can't tell what this button does\" or \"Wait, where did the menu go?\"). Even if the page is "
+    "broken or empty, write what this persona would actually mutter. Never leave a quote blank.\n"
+    "ABANDONMENT (a deterministic JUDGMENT, never a real early stop): mark `would_abandon` true on a friction "
+    "point if a real user of THIS persona would quit there given their patience and disposition; set the "
+    "report-level `abandoned` true if this persona would give up overall before finishing. This is a judgment "
+    "about a run you STILL COMPLETE — do NOT actually stop early; attempt the whole flow regardless, then "
+    "annotate where they would have quit.\n"
+    "`persona_take` is REQUIRED: ONE punchy first-person line summarizing this persona's overall verdict in "
+    "their own voice and perspective (e.g. \"As a skeptical compliance buyer, I'd bounce: the demo booking is "
+    "broken and nothing backs up the claims.\")."
 )
 
 _DEFAULT_SYSTEM = _AGENT_SYSTEM  # back-compat for callers/imports
@@ -243,7 +251,15 @@ def _normalize(report: dict, persona: dict) -> dict:
     except Exception:
         report["confidence"] = 0.5
 
+    # persona_take: one first-person verdict line. Default to "" if missing.
+    pt = report.get("persona_take")
+    report["persona_take"] = str(pt) if isinstance(pt, str) else ""
+    # F1: report-level abandonment judgment. Default to False.
+    report["abandoned"] = bool(report.get("abandoned", False))
+
     # F2: normalize structured friction (issue + voice-of-customer quote + severity).
+    # F1: each friction item carries would_abandon (bool, default False) — a JUDGMENT of whether a
+    # real user of this persona would quit there. The run still completes; this only annotates it.
     sev = report.get("severity", "medium")
     norm_fr: list[dict] = []
     fr = report.get("friction")
@@ -255,11 +271,13 @@ def _normalize(report: dict, persona: dict) -> dict:
                     "issue": str(f.get("issue", "")),
                     "quote": str(f.get("quote", "")),
                     "severity": fs if fs in ("low", "medium", "high") else sev,
+                    "would_abandon": bool(f.get("would_abandon", False)),
                 })
             elif isinstance(f, str) and f.strip():
-                norm_fr.append({"issue": f, "quote": "", "severity": sev})
+                norm_fr.append({"issue": f, "quote": "", "severity": sev, "would_abandon": False})
     if not norm_fr and report.get("friction_points"):
-        norm_fr = [{"issue": str(fp), "quote": "", "severity": sev} for fp in report["friction_points"]]
+        norm_fr = [{"issue": str(fp), "quote": "", "severity": sev, "would_abandon": False}
+                   for fp in report["friction_points"]]
     report["friction"] = norm_fr
     # Keep friction_points as the derived issue list so existing evals/critic/aggregator are unchanged.
     if norm_fr:
@@ -323,13 +341,16 @@ def _synthesize_report(llm, persona, inputs, states, prompt_override, login_bloc
         f"{_goal_block(inputs)}\n\n"
         f"Observed page states (in order):\n{json.dumps(observed, indent=2)[:6000]}\n\n"
         "Now produce the strict JSON UX report with keys: persona, task_success, step_log, "
-        "friction (a list of {issue, quote, severity}, where quote is a NON-EMPTY first-person line this "
-        "persona would actually say out loud about the friction), evidence, severity, recommendations, confidence."
+        "friction (a list of {issue, quote, severity, would_abandon}, where quote is a NON-EMPTY first-person "
+        "line this persona would actually say out loud about the friction, and would_abandon is a JUDGMENT of "
+        "whether a real user of this persona would quit there — not an actual early stop), evidence, severity, "
+        "recommendations, confidence, persona_take (ONE punchy first-person verdict line in this persona's "
+        "voice), abandoned (would this persona give up overall before finishing — a judgment)."
     )
     default = {
         "persona": persona.get("name", "Persona"), "task_success": not login_blocked,
         "step_log": [], "friction_points": [], "evidence": [], "severity": "medium",
-        "recommendations": [], "confidence": 0.5,
+        "recommendations": [], "confidence": 0.5, "persona_take": "", "abandoned": False,
     }
     report = llm.complete_json(system=system, user=user, tier=FAST, default=default)
     if not isinstance(report, dict):

@@ -255,9 +255,14 @@ class AgentspanRunner(InProcessRunner):
         if data:
             self._critic_engine = "Agentspan"
             # F2: friction quotes are the user's voice from the tester; never let the critic
-            # blank them. Carry them through deterministically.
+            # blank them. Carry them through deterministically (the F1 would_abandon flag lives
+            # inside each friction item, so it is preserved here too).
             if raw.get("friction"):
                 data["friction"] = raw["friction"]
+            # F2/F1: persona_take and report-level abandoned are new fields the critic may strip.
+            # Carry them through deterministically from the raw tester output.
+            data["persona_take"] = raw.get("persona_take", data.get("persona_take", ""))
+            data["abandoned"] = raw.get("abandoned", data.get("abandoned", False))
             return _normalize(data, {"name": persona_name})  # local schema guarantee, no extra LLM
         self._critic_engine = "in-process (Agentspan fallback)"
         return super()._critique(llm, raw, persona_name)

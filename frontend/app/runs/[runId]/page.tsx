@@ -8,6 +8,9 @@ import {
   improveRun,
   RunOut,
   Report,
+  Persona,
+  EvalResult,
+  FrictionItem,
 } from "@/lib/api";
 import StatusTimeline from "@/components/StatusTimeline";
 import PersonaCard from "@/components/PersonaCard";
@@ -37,6 +40,40 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+// Compact trust-score chip: label + big % + optional mock-calibrated caption.
+function TrustChip({
+  label,
+  evalResult,
+}: {
+  label: string;
+  evalResult?: EvalResult;
+}) {
+  const has = typeof evalResult?.score === "number";
+  const value = has
+    ? evalResult!.score <= 1
+      ? `${Math.round(evalResult!.score * 100)}%`
+      : evalResult!.score.toFixed(1)
+    : "—";
+  const mock = evalResult?.explanation
+    ?.toLowerCase()
+    .includes("mock");
+  return (
+    <div className="flex-1 rounded-xl border border-cool/25 bg-cool/5 px-4 py-3">
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cool">
+        {label}
+      </p>
+      <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-fog">
+        {value}
+      </p>
+      {mock && (
+        <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-fog-faint">
+          mock-calibrated
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -105,6 +142,9 @@ export default function RunPage({ params }: { params: { runId: string } }) {
   const humanAgreement = run.evals?.find(
     (e) => e.eval_name === "human_agreement"
   );
+  const humanLikeness = run.evals?.find(
+    (e) => e.eval_name === "human_likeness"
+  );
   const showCompare = Boolean(run.parent_run_id);
   const personaById = (id: string) =>
     run.personas?.find((p) => p.id === id);
@@ -151,7 +191,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
               href={run.url}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-block font-mono text-xs text-cool hover:underline"
+              className="mt-1 inline-block font-mono text-xs text-cool hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
             >
               {run.url}
             </a>
@@ -188,23 +228,27 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           </div>
         )}
 
-        {/* aggregate summary */}
-        {run.aggregate && (
+        {/* concise top-of-page summary: 1-line summary + severity + two trust chips */}
+        {(run.aggregate || humanAgreement || humanLikeness) && (
           <Section
             title="Summary"
-            right={<SeverityBadge severity={run.aggregate.overall_severity} />}
+            right={
+              run.aggregate ? (
+                <SeverityBadge severity={run.aggregate.overall_severity} />
+              ) : undefined
+            }
           >
-            <p className="text-fog">{run.aggregate.summary}</p>
-            <div className="mt-4 grid gap-6 sm:grid-cols-2">
-              <FrictionList
-                title="Top friction points"
-                items={run.aggregate.top_friction_points}
+            {run.aggregate?.summary && (
+              <p className="line-clamp-2 text-[15px] leading-relaxed text-fog">
+                {run.aggregate.summary}
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3">
+              <TrustChip
+                label="Terac human agreement"
+                evalResult={humanAgreement}
               />
-              <FrictionList
-                title="Recommendations"
-                items={run.aggregate.recommendations}
-                variant="reco"
-              />
+              <TrustChip label="Human-likeness" evalResult={humanLikeness} />
             </div>
           </Section>
         )}
@@ -216,23 +260,6 @@ export default function RunPage({ params }: { params: { runId: string } }) {
 
           <Section title="Arize evals">
             <EvalScores evals={run.evals} />
-            {humanAgreement && (
-              <div className="mt-4 rounded-xl border border-cool/30 bg-cool/10 px-4 py-3">
-                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-cool">
-                  Terac human agreement
-                </p>
-                <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-fog">
-                  {humanAgreement.score <= 1
-                    ? `${Math.round(humanAgreement.score * 100)}%`
-                    : humanAgreement.score.toFixed(1)}
-                </p>
-                {humanAgreement.explanation && (
-                  <p className="mt-1 text-xs text-fog-muted">
-                    {humanAgreement.explanation}
-                  </p>
-                )}
-              </div>
-            )}
           </Section>
         </div>
 
@@ -248,11 +275,12 @@ export default function RunPage({ params }: { params: { runId: string } }) {
 
         {run.reports?.length > 0 ? (
           <Section title={`Per-persona reports (${run.reports.length})`}>
-            <div className="space-y-5">
+            <div className="space-y-4">
               {run.reports.map((r) => (
                 <ReportCard
                   key={r.id}
                   report={r}
+                  persona={personaById(r.persona_id)}
                   personaName={
                     personaById(r.persona_id)?.name || r.report?.persona
                   }
@@ -273,101 +301,223 @@ export default function RunPage({ params }: { params: { runId: string } }) {
   );
 }
 
+// Verdict pill: abandoned > succeeded > struggled > passed.
+// Heat for abandoned/struggled, cool for succeeded/passed.
+function verdict(r: Report["report"]): {
+  label: string;
+  className: string;
+} {
+  const success =
+    r?.task_success === true ||
+    r?.task_success === "true" ||
+    r?.task_success === "success";
+  const sev = String(r?.severity || "").toLowerCase();
+  if (r?.abandoned) {
+    return {
+      label: "abandoned",
+      className: "bg-heat-high/15 text-heat-high ring-heat-high/40",
+    };
+  }
+  if (success) {
+    return {
+      label: "succeeded",
+      className: "bg-cool/10 text-cool ring-cool/30",
+    };
+  }
+  if (sev === "high" || sev === "medium") {
+    return {
+      label: "struggled",
+      className: "bg-heat-med/15 text-heat-med ring-heat-med/40",
+    };
+  }
+  return {
+    label: "passed",
+    className: "bg-cool/10 text-cool ring-cool/30",
+  };
+}
+
+// Pull the one-word archetype that makes each tester feel distinct.
+function archetype(persona?: Persona): string | null {
+  const t = persona?.traits?.[0];
+  if (!t) return null;
+  return t.split(/\s+/)[0];
+}
+
 function ReportCard({
   report,
+  persona,
   personaName,
 }: {
   report: Report;
+  persona?: Persona;
   personaName?: string;
 }) {
   const r = report.report;
-  const success =
-    r?.task_success === true || r?.task_success === "true" || r?.task_success === "success";
+  const [expanded, setExpanded] = useState(false);
+  const v = verdict(r);
+  const arch = archetype(persona);
+
+  // Top 2-3 friction points for the scannable default view.
+  const friction: FrictionItem[] = r?.friction?.length
+    ? r.friction
+    : (r?.friction_points || []).map((issue) => ({ issue }));
+  const topFriction = friction.slice(0, 3);
+
   return (
     <div className="rounded-xl border border-ink-line bg-ink-800/30 p-5">
+      {/* card header: distinct tester identity + verdict pill */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-display font-semibold text-fog">
-          {personaName || "Persona"}
-        </h4>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span
-            className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ring-1 ring-inset ${
-              success
-                ? "bg-cool/10 text-cool ring-cool/30"
-                : "bg-heat-high/10 text-heat-high ring-heat-high/30"
-            }`}
+            aria-hidden
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-cool/10 font-mono text-[11px] font-semibold uppercase text-cool ring-1 ring-inset ring-cool/30"
           >
-            {success ? "task succeeded" : "task failed"}
+            {(personaName || "P").slice(0, 2)}
           </span>
-          <SeverityBadge severity={r?.severity} />
-          {typeof r?.confidence === "number" && (
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fog-faint">
-              conf {Math.round((r.confidence <= 1 ? r.confidence * 100 : r.confidence))}%
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-5 lg:grid-cols-2">
-        <div className="space-y-4">
-          {r?.friction?.length ? (
-            <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
-                Friction points
-              </p>
-              <ul className="space-y-2.5">
-                {r.friction.map((f, i) => (
-                  <li
-                    key={i}
-                    className="rounded-lg border border-ink-line bg-ink-900/40 p-3"
-                  >
-                    <div className="flex gap-2 text-sm text-fog">
-                      <span className="mt-0.5 font-mono text-heat-med">•</span>
-                      <span>{f.issue}</span>
-                    </div>
-                    {f.quote && (
-                      <p className="mt-2 border-l-2 border-heat-ember/60 pl-3 text-sm italic text-fog-muted">
-                        &ldquo;{f.quote}&rdquo;
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <FrictionList title="Friction points" items={r?.friction_points || []} />
-          )}
-          <FrictionList
-            title="Recommendations"
-            items={r?.recommendations || []}
-            variant="reco"
-          />
-          {r?.evidence?.length > 0 && (
-            <div>
-              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
-                Evidence
-              </p>
-              <ul className="space-y-1 text-sm text-fog-muted">
-                {r.evidence.map((ev, i) => (
-                  <li key={i} className="border-l-2 border-cool/30 pl-2 italic">
-                    {ev}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
           <div>
-            <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
-              Browser steps
-            </p>
-            <StepLog steps={report.steps} />
+            <h4 className="font-display font-semibold leading-tight text-fog">
+              {personaName || "Persona"}
+            </h4>
+            {arch && (
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-fog-faint">
+                {arch}
+              </span>
+            )}
           </div>
-          <SessionReplay steps={report.steps} />
         </div>
+        <span
+          className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ring-1 ring-inset ${v.className}`}
+        >
+          {v.label}
+        </span>
       </div>
+
+      {/* the headline: persona's first-person take */}
+      {r?.persona_take && (
+        <p className="mt-3.5 font-display text-[17px] leading-snug text-fog">
+          &ldquo;{r.persona_take}&rdquo;
+        </p>
+      )}
+
+      {/* concise default: top 2-3 friction points with quotes */}
+      {topFriction.length > 0 && (
+        <ul className="mt-4 space-y-2.5">
+          {topFriction.map((f, i) => (
+            <li
+              key={i}
+              className="rounded-lg border border-ink-line bg-ink-900/40 p-3"
+            >
+              <div className="flex gap-2 text-sm text-fog">
+                <span className="mt-0.5 font-mono text-heat-med">•</span>
+                <span className="flex-1">{f.issue}</span>
+                {f.would_abandon && (
+                  <span
+                    title="A real user would quit here"
+                    className="shrink-0 rounded bg-heat-high/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-heat-high ring-1 ring-inset ring-heat-high/40"
+                  >
+                    quit
+                  </span>
+                )}
+              </div>
+              {f.quote && (
+                <p className="mt-2 border-l-2 border-heat-ember/60 pl-3 text-sm italic text-fog-muted">
+                  &ldquo;{f.quote}&rdquo;
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* toggle */}
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="mt-4 rounded-md font-mono text-[11px] uppercase tracking-[0.18em] text-cool transition hover:text-cool/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
+      >
+        {expanded ? "Hide ▾" : "Show full run data ▸"}
+      </button>
+
+      {/* full data — hidden by default */}
+      {expanded && (
+        <div className="mt-4 grid gap-5 border-t border-ink-line pt-4 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <SeverityBadge severity={r?.severity} />
+              {typeof r?.confidence === "number" && (
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fog-faint">
+                  conf{" "}
+                  {Math.round(
+                    r.confidence <= 1 ? r.confidence * 100 : r.confidence
+                  )}
+                  %
+                </span>
+              )}
+            </div>
+
+            {friction.length ? (
+              <div>
+                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
+                  All friction points
+                </p>
+                <ul className="space-y-2.5">
+                  {friction.map((f, i) => (
+                    <li
+                      key={i}
+                      className="rounded-lg border border-ink-line bg-ink-900/40 p-3"
+                    >
+                      <div className="flex gap-2 text-sm text-fog">
+                        <span className="mt-0.5 font-mono text-heat-med">•</span>
+                        <span className="flex-1">{f.issue}</span>
+                        {f.would_abandon && (
+                          <span className="shrink-0 rounded bg-heat-high/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-heat-high ring-1 ring-inset ring-heat-high/40">
+                            quit
+                          </span>
+                        )}
+                      </div>
+                      {f.quote && (
+                        <p className="mt-2 border-l-2 border-heat-ember/60 pl-3 text-sm italic text-fog-muted">
+                          &ldquo;{f.quote}&rdquo;
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            <FrictionList
+              title="Recommendations"
+              items={r?.recommendations || []}
+              variant="reco"
+            />
+            {r?.evidence?.length > 0 && (
+              <div>
+                <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
+                  Evidence
+                </p>
+                <ul className="space-y-1 text-sm text-fog-muted">
+                  {r.evidence.map((ev, i) => (
+                    <li key={i} className="border-l-2 border-cool/30 pl-2 italic">
+                      {ev}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
+                Browser steps
+              </p>
+              <StepLog steps={report.steps} />
+            </div>
+            <SessionReplay steps={report.steps} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

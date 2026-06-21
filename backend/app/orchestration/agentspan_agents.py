@@ -128,11 +128,14 @@ def critique_agentspan(raw: dict, persona_name: str) -> dict | None:
     query = (
         f"Persona: {persona_name}\n"
         "Required keys: persona(string), task_success(boolean), step_log(string[]), "
-        "friction_points(string[]), friction(array of {issue, quote, severity} — you MUST PRESERVE every "
-        "quote verbatim and non-empty), evidence(string[]), severity(low|medium|high), "
-        "recommendations(string[]), confidence(number 0-1).\n"
-        "Repair this draft to satisfy them EXACTLY. Keep the content, especially the friction quotes — "
-        "never drop or blank a quote. friction_points and evidence MUST be arrays of plain strings:\n"
+        "friction_points(string[]), friction(array of {issue, quote, severity, would_abandon} — you MUST "
+        "PRESERVE every quote verbatim and non-empty AND preserve each would_abandon boolean), evidence(string[]), "
+        "severity(low|medium|high), recommendations(string[]), confidence(number 0-1), "
+        "persona_take(string — ONE punchy first-person verdict line; PRESERVE it verbatim), "
+        "abandoned(boolean — PRESERVE it).\n"
+        "Repair this draft to satisfy them EXACTLY. Keep the content, especially the friction quotes and the "
+        "would_abandon flags, the persona_take line, and the abandoned flag — never drop or blank any of them. "
+        "friction_points and evidence MUST be arrays of plain strings:\n"
         f"{json.dumps(raw)[:6000]}"
     )
     data = _run_agent_json("report_critic", instructions, query)

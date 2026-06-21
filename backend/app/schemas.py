@@ -30,13 +30,19 @@ class AgentReportSchema(BaseModel):
     task_success: bool
     step_log: list[str] = Field(default_factory=list)
     friction_points: list[str] = Field(default_factory=list)
-    # F2: structured friction — each {issue, quote (voice-of-customer), severity}.
-    # friction_points stays the derived [issue, ...] list so existing evals/critic work.
+    # F2: structured friction — each {issue, quote (voice-of-customer), severity, would_abandon}.
+    # F1: would_abandon (bool) is a deterministic JUDGMENT — would a real user of this persona quit
+    # at this friction point. friction_points stays the derived [issue, ...] list so evals/critic work.
     friction: list[dict] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     severity: Severity = "medium"
     recommendations: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    # persona_take: one punchy first-person line summarizing this persona's overall verdict in their voice.
+    persona_take: str = ""
+    # F1: abandoned — would this persona effectively give up before finishing the flow (a judgment, not
+    # an actual early stop; the agent still attempts the whole flow).
+    abandoned: bool = False
 
 
 # JSON Schema handed to Claude structured-output / used by ReportCriticAgent.
@@ -47,14 +53,30 @@ AGENT_REPORT_JSON_SCHEMA: dict = {
         "task_success": {"type": "boolean"},
         "step_log": {"type": "array", "items": {"type": "string"}},
         "friction_points": {"type": "array", "items": {"type": "string"}},
+        "friction": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "issue": {"type": "string"},
+                    "quote": {"type": "string"},
+                    "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+                    "would_abandon": {"type": "boolean"},
+                },
+                "required": ["issue", "quote", "would_abandon"],
+            },
+        },
         "evidence": {"type": "array", "items": {"type": "string"}},
         "severity": {"type": "string", "enum": ["low", "medium", "high"]},
         "recommendations": {"type": "array", "items": {"type": "string"}},
         "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "persona_take": {"type": "string"},
+        "abandoned": {"type": "boolean"},
     },
     "required": [
         "persona", "task_success", "step_log", "friction_points",
         "evidence", "severity", "recommendations", "confidence",
+        "persona_take", "abandoned",
     ],
     "additionalProperties": False,
 }

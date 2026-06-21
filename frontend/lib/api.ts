@@ -25,6 +25,7 @@ export interface FrictionItem {
   issue: string;
   quote?: string;
   severity?: Severity;
+  would_abandon?: boolean; // whether a real user would quit at this friction point
 }
 
 export interface ReportBody {
@@ -37,6 +38,8 @@ export interface ReportBody {
   severity: Severity;
   recommendations: string[];
   confidence: number;
+  persona_take?: string; // one-line first-person verdict in the persona's voice
+  abandoned?: boolean; // whether this persona would give up
 }
 
 export interface Report {
