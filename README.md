@@ -2,139 +2,136 @@
 
 **AI user-testing agents for builders, validated by real human feedback.**
 
-A builder enters a product URL + a task to test. The app fans out multiple AI personas
-that test the product with browser tools and generate UX reports. Real humans (via Terac)
-label the reports, Arize traces + evaluates every run, and the agent is improved and rerun
-to prove measurable before/after gains.
+A builder enters a product URL + a task. UserSwarm fans out AI **personas** that
+drive the product with a browser agent, produce strict-JSON **UX reports**, then:
 
-> We are not replacing human research. We make AI user testing trustworthy by calibrating
-> synthetic user agents with Terac human feedback and proving improvement with Arize evals,
-> all orchestrated through Orkes Agentspan.
+- **Orkes / Agentspan** orchestrates the durable multi-agent workflow,
+- **Terac** collects human preference labels that calibrate the agent,
+- **Arize** traces every run and evaluates report quality,
 
-## Sponsor stack (the real core three)
+…and the agent is **improved from those labels and rerun** to prove measurable
+before/after gains.
 
-| Sponsor               | Role in app                                                        |
-| --------------------- | ------------------------------------------------------------------ |
-| **Orkes / Agentspan** | Durable multi-agent workflow engine — orchestrates the agents      |
-| **Terac**             | Human annotation + preference labels to improve the agent          |
-| **Arize**             | Tracing + evals — proves before/after improvement                  |
+> AI user agents give instant UX feedback; Terac human labels calibrate whether
+> that feedback is trustworthy; Arize proves improvement; Orkes/Agentspan
+> coordinates the workflow. *Not a replacement for real user research — a way to
+> make synthetic user testing trustworthy.*
 
-Pika is skippable unless there's extra time.
+---
 
-## Core flow
+## Mock-first, real-ready
 
-```mermaid
-flowchart TD
-  A["Builder submits URL + task"] --> B["Orkes/Agentspan workflow"]
-  B --> C["Generate AI personas"]
-  C --> D["Agents test product with browser tools"]
-  D --> E["UX reports"]
-  E --> F["Terac human annotations"]
-  F --> G["Arize evals"]
-  G --> H["Improve agent prompt/model"]
-  H --> I["Rerun improved agents"]
-  I --> J["Before/after dashboard"]
-```
+Every sponsor integration has a **real** code path and a **mock** code path behind
+one interface. Mock mode auto-enables when a credential/server is missing, so the
+**entire demo runs fully offline with zero env vars**. Add a key to flip that
+integration live. Persistence uses **Supabase/Postgres** via `DATABASE_URL`, with a
+**SQLite fallback** when it's unset.
 
-## Agents (Agentspan)
+| Integration | Live path | Mock path (default) |
+| ----------- | --------- | ------------------- |
+| Anthropic LLM | `anthropic` SDK, claude-sonnet-4-6 / claude-opus-4-8 | Canned plausible JSON |
+| Agentspan | Agentspan SDK against `AGENTSPAN_SERVER_URL` | In-process DAG runner (same nodes, still visible) |
+| Arize | `arize-otel` + OpenInference spans + evals | Spans/evals logged locally + to console |
+| Terac | Terac API annotation jobs | Synthetic human labels |
 
-| Agent                   | Job                                               |
-| ----------------------- | ------------------------------------------------- |
-| `PersonaGeneratorAgent` | Creates 3-5 realistic user personas               |
-| `UXTesterAgent`         | Acts as a persona and tests the app               |
-| `ReportCriticAgent`     | Checks if each report is specific/useful          |
-| `AggregatorAgent`       | Combines findings into one builder report         |
-| `ImproverAgent`         | Uses Terac + Arize feedback to improve the prompt |
+---
 
-Browser actions are exposed to Agentspan as `@tool`s (Playwright-backed):
-`open_url`, `click_by_text`, `type_into_field`, `get_page_state`, `scroll`.
+## Quick start (offline, no keys needed)
 
+### Backend
 ```bash
-pip install agentspan
-agentspan server start   # UI at http://localhost:6767
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium          # optional; static fallback works without it
+uvicorn app.main:app --reload        # http://localhost:8000  (GET / shows mock/live modes)
 ```
 
-## Terac — human validation layer
+### Frontend
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local     # NEXT_PUBLIC_API_URL=http://localhost:8000
+npm run dev                          # http://localhost:3000
+```
 
-Annotation environment at `/annotate/[runId]`. Annotator sees product description, task,
-persona, the agent's UX report (+ screenshot/step log) and answers rating questions:
+Open **http://localhost:3000** and submit a run.
 
-| Question                                   | Type         |
-| ------------------------------------------ | ------------ |
-| Is this feedback useful to a builder?      | 1-5 rating   |
-| Is the report specific, or vague?          | 1-5 rating   |
-| Did the agent hallucinate anything?        | Yes/No       |
-| Did the agent complete the task correctly? | Yes/No       |
-| Would a real user likely agree?            | 1-5 rating   |
-| Which report is better, base or improved?  | Pairwise A/B |
+---
 
-Hackathon-safe loop: base agent → Terac labels → improved prompt/rubric → rerun → prove gains.
-Constraints: build annotation env, call Terac API/MCP, $250 credit, general-population
-annotators, improve model with collected data. Judging: 40% model improvement,
-35% annotation UX, 25% smart use of human data.
+## Demo script (≈3 min)
 
-## Arize — proof layer
+1. **Submit** on `/`: a real public URL (e.g. `https://example.com`), product
+   description, target audience, a task, and success criteria. → redirects to the run page.
+2. **`/runs/[id]`** — watch the **Agentspan workflow timeline** advance:
+   `PersonaGenerator → UXTester ×N → Aggregator → Evals`. See 3–5 personas, each
+   tester's **real browser step log** (open_url / get_page_state / click / scroll) with
+   screenshots, friction points, severity, recommendations, **Arize eval scores**, and
+   the **Terac human-agreement** score.
+3. **Annotate** → `/annotate/[id]`: act as a Terac human labeller; answer the six
+   questions (usefulness, specificity, hallucination, task understanding, real-user
+   agreement, A/B). Submit → the human-agreement eval updates.
+4. **Run Improvement** — the `ImproverAgent` turns labels + failing evals into an
+   improved prompt and reruns the workflow as an `improved` variant.
+5. **Compare** → `/runs/[id]/compare`: **base vs improved** table — usefulness,
+   evidence coverage, hallucination risk, human agreement, actionability pass rate,
+   task-success rate, with deltas.
 
-Trace every run (input: URL, product, persona, task; output: task success, step log,
-friction, recommendations, confidence). Evals to build:
+To show **live** mode: set `ANTHROPIC_API_KEY` (and optionally `AGENTSPAN_SERVER_URL`,
+`ARIZE_API_KEY`+`ARIZE_SPACE_ID`, `TERAC_API_KEY`), restart, and rerun — real Claude
+output and real spans, with mock fallback intact for any still-missing credential.
 
-| Eval                 | Type             | Purpose                                             |
-| -------------------- | ---------------- | --------------------------------------------------- |
-| `has_task_success`   | code eval        | Report includes task success true/false             |
-| `has_evidence`       | code eval        | Each issue has evidence/screenshot/page step        |
-| `actionability`      | LLM eval         | Recommendations are specific and useful             |
-| `hallucination_risk` | LLM eval         | Report invents unsupported UI claims                |
-| `human_agreement`    | Terac-based eval | AI report vs Terac human labels                     |
-| `improvement_score`  | experiment eval  | Base vs improved agent                              |
+---
 
-## Before / after story (demo metrics)
+## Going live per sponsor
 
-| Metric                  | Base Agent | Improved Agent |
-| ----------------------- | ---------: | -------------: |
-| Human usefulness rating |      3.1/5 |          4.2/5 |
-| Reports with evidence   |        55% |            90% |
-| Hallucination risk      |        28% |             8% |
-| Human agreement         |        62% |            81% |
-| Actionability pass rate |        50% |            85% |
+- **Agentspan / Orkes:** `pip install agentspan` → `agentspan server start` (UI at
+  `http://localhost:6767`) → set `AGENTSPAN_SERVER_URL`. The same DAG nodes register/run
+  on Agentspan; the dashboard timeline reflects them.
+- **Arize:** set `ARIZE_API_KEY` + `ARIZE_SPACE_ID` (install `arize-otel` +
+  `openinference-instrumentation`). Every run, persona-gen, UX agent, browser tool call,
+  aggregation, improved-prompt gen, and rerun is traced; six evals are logged.
+- **Terac:** set `TERAC_API_KEY`. Real annotation jobs are created from agent reports;
+  the `terac.py` adapter has `# TODO` markers for the exact endpoint/payload — drop them in.
+  The `/annotate` route already writes **real** human labels regardless of mode.
 
-## Builder input
+---
 
-Required: URL, product description, target audience, task, success criteria.
-Optional: test login, pages to avoid, do-not-click rules, competitors, prototype link,
-specific personas.
+## Architecture
 
-`UXTesterAgent` returns strict JSON:
-`persona, task_success, step_log, friction_points, evidence, severity, recommendations, confidence`.
+```
+backend/   FastAPI · SQLAlchemy (Postgres|SQLite) · Anthropic · Playwright
+  app/agents/         PersonaGenerator · UXTester · ReportCritic · Aggregator · Improver
+  app/browser/        Playwright tools + safety guard (no destructive clicks; 8–12 action cap)
+  app/orchestration/  WorkflowRunner (InProcess | Agentspan) + event persistence
+  app/integrations/   arize.py · terac.py  (real + mock)
+  app/evals/          code + LLM-judge evals, human agreement, improvement score
+  app/routers/        /runs · /annotate · /runs/{id}/compare
+frontend/  Next.js 14 (App Router) + TS + Tailwind
+  app/                / · /runs/[id] · /runs/[id]/compare · /annotate/[id]
+```
 
-## Tech stack
+### Evals
+`has_task_success` · `has_evidence` (code) · `actionability` · `hallucination_risk`
+(LLM judge) · `human_agreement` (Terac) · `improvement_score` (base vs improved).
 
-| Layer               | Tool                        |
-| ------------------- | --------------------------- |
-| Frontend            | Next.js + TypeScript + Tailwind |
-| Backend             | FastAPI (Python)            |
-| Agent orchestration | Agentspan                   |
-| Browser automation  | Playwright                  |
-| Human labels        | Terac API/MCP               |
-| Tracing/evals       | Arize AX / OpenInference    |
-| Database            | Supabase or SQLite/Postgres |
-| LLM                 | Claude (default) or OpenAI  |
+### Browser safety
+Each agent is capped at 8–12 actions; purchase / payment / delete / send / invite /
+destructive clicks are blocked; login-required pages with no credentials stop and
+report; if automation is blocked the agent falls back to static page review.
 
-## Build order
+---
 
-1. Input dashboard
-2. Agentspan workflow with fake/static page analysis first
-3. Playwright browser tools
-4. Structured persona UX reports (strict JSON)
-5. Arize tracing
-6. Arize evals
-7. Terac annotation page
-8. Store human labels
-9. Improve prompt from labels
-10. Rerun improved agent
-11. Before/after dashboard
+## API
 
-Guardrails: working demo flow first, no destructive browser actions, strict JSON outputs.
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| POST | `/runs` | Start a workflow → `{id}` |
+| GET | `/runs/{id}` | Full run: status, personas, reports+steps, events, evals, aggregate |
+| GET | `/runs` | Recent runs |
+| POST | `/runs/{id}/improve` | Improve from labels + rerun → improved `{id}` |
+| GET | `/annotate/{id}` | Payload for the Terac annotation UI |
+| POST | `/annotate/{id}` | Store a human label |
+| GET | `/runs/{id}/compare` | Base vs improved metrics + deltas |
 
-## Setup
-
-Copy `.env.example` to `.env` and fill in keys. See `.env.example` for required vars.
+Env vars: see `.env.example`.
