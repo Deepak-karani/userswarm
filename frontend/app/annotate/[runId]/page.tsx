@@ -33,17 +33,17 @@ function Likert({
 }) {
   return (
     <div>
-      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <p className="text-sm font-medium text-fog">{label}</p>
       <div className="mt-2 flex gap-2">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(n)}
-            className={`h-9 w-9 rounded-lg border text-sm font-medium transition ${
+            className={`h-9 w-9 rounded-md border font-mono text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50 ${
               value === n
-                ? "border-accent bg-accent text-white"
-                : "border-slate-300 bg-white text-slate-600 hover:border-accent/50"
+                ? "border-cool bg-cool/20 text-cool"
+                : "border-ink-line bg-ink-800 text-fog-muted hover:border-cool/40"
             }`}
           >
             {n}
@@ -51,7 +51,7 @@ function Likert({
         ))}
       </div>
       {(lowLabel || highLabel) && (
-        <div className="mt-1 flex justify-between text-xs text-slate-400">
+        <div className="mt-1 flex justify-between font-mono text-[10px] uppercase tracking-[0.12em] text-fog-faint">
           <span>{lowLabel}</span>
           <span>{highLabel}</span>
         </div>
@@ -71,7 +71,7 @@ function YesNo({
 }) {
   return (
     <div>
-      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <p className="text-sm font-medium text-fog">{label}</p>
       <div className="mt-2 flex gap-2">
         {[
           { v: true, t: "Yes" },
@@ -81,10 +81,10 @@ function YesNo({
             key={o.t}
             type="button"
             onClick={() => onChange(o.v)}
-            className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition ${
+            className={`rounded-md border px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50 ${
               value === o.v
-                ? "border-accent bg-accent text-white"
-                : "border-slate-300 bg-white text-slate-600 hover:border-accent/50"
+                ? "border-cool bg-cool/20 text-cool"
+                : "border-ink-line bg-ink-800 text-fog-muted hover:border-cool/40"
             }`}
           >
             {o.t}
@@ -106,14 +106,14 @@ function ReportView({
 }) {
   const r = report.report;
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+    <div className="rounded-xl border border-ink-line bg-ink-800/40 p-4">
       {label && (
-        <span className="mb-2 inline-block rounded bg-accent px-2 py-0.5 text-xs font-semibold text-white">
+        <span className="mb-2 inline-block rounded bg-cool/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-cool ring-1 ring-inset ring-cool/30">
           Report {label}
         </span>
       )}
       <div className="flex items-center justify-between">
-        <p className="font-medium text-slate-800">
+        <p className="font-display font-medium text-fog">
           {persona?.name || r?.persona || "Persona"}
         </p>
         <SeverityBadge severity={r?.severity} />
@@ -129,7 +129,7 @@ function ReportView({
           <FrictionList title="Evidence" items={r.evidence} />
         )}
         <div>
-          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
             Step log
           </p>
           <StepLog steps={report.steps} />
@@ -175,8 +175,8 @@ export default function AnnotatePage({
   if (error) {
     return (
       <div className="mx-auto max-w-2xl px-6 py-20 text-center">
-        <p className="text-rose-600">{error}</p>
-        <Link href="/" className="mt-3 inline-block text-sm text-accent-fg">
+        <p className="text-heat-high">{error}</p>
+        <Link href="/" className="mt-3 inline-block font-mono text-xs text-cool hover:underline">
           ← Home
         </Link>
       </div>
@@ -185,7 +185,7 @@ export default function AnnotatePage({
 
   if (!data) {
     return (
-      <div className="mx-auto max-w-2xl px-6 py-20 text-center text-slate-400">
+      <div className="mx-auto max-w-2xl px-6 py-20 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
         Loading reports…
       </div>
     );
@@ -195,13 +195,13 @@ export default function AnnotatePage({
     return (
       <>
         <div className="mx-auto max-w-xl px-6 py-24 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cool/15 text-2xl text-cool ring-1 ring-cool/30">
             ✓
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-slate-900">
+          <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight text-fog">
             Thanks for labeling
           </h1>
-          <p className="mt-2 text-slate-500">
+          <p className="mt-2 text-fog-muted">
             Your label helps calibrate whether the AI feedback is trustworthy.
           </p>
           <div className="mt-6 flex justify-center gap-3">
@@ -218,13 +218,13 @@ export default function AnnotatePage({
                   Math.min(i + 1, (data.reports?.length || 1) - 1)
                 );
               }}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-fg"
+              className="rounded-md bg-heat-ember px-4 py-2 text-sm font-semibold text-ink-900 shadow-[0_8px_28px_-8px_rgba(240,104,60,0.7)] transition hover:bg-heat-ember/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heat-ember/50"
             >
               Label another
             </button>
             <Link
               href={`/runs/${runId}`}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-md border border-ink-line bg-ink-800 px-4 py-2 text-sm font-medium text-fog transition hover:border-cool/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
             >
               Back to run
             </Link>
@@ -271,29 +271,39 @@ export default function AnnotatePage({
       <div className="mx-auto max-w-5xl px-6 py-8">
         <Link
           href={`/runs/${runId}`}
-          className="text-sm text-accent-fg hover:underline"
+          className="font-mono text-xs text-cool hover:underline"
         >
           ← Back to run
         </Link>
         <div className="mt-2 flex items-center gap-2">
-          <span className="rounded bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-fg">
+          <span className="rounded bg-cool/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-cool ring-1 ring-inset ring-cool/30">
             Terac labeling
           </span>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-fog">
             Calibrate the AI feedback
           </h1>
         </div>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-fog-muted">
           Human labels tell us whether to trust the AI user agents.
         </p>
 
         {/* context */}
-        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
-          <p className="text-sm text-slate-700">
-            <span className="font-medium">Product:</span> {data.description}
+        <div className="mt-5 rounded-xl border border-ink-line bg-ink-800/50 p-4">
+          <p className="text-sm text-fog">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fog-faint">
+              Product
+            </span>{" "}
+            {data.description}
           </p>
-          <p className="mt-1 text-sm text-slate-700">
-            <span className="font-medium">Task:</span> {data.task}
+          <p className="mt-1 text-sm text-fog">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fog-faint">
+              Task
+            </span>{" "}
+            {data.task ? (
+              data.task
+            ) : (
+              <span className="text-fog-faint">free explore</span>
+            )}
           </p>
         </div>
 
@@ -305,10 +315,10 @@ export default function AnnotatePage({
                 <button
                   key={rep.id}
                   onClick={() => setSelectedIdx(i)}
-                  className={`rounded-full px-3 py-1 text-sm transition ${
+                  className={`rounded-full px-3 py-1 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50 ${
                     i === selectedIdx
-                      ? "bg-accent text-white"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-accent/40"
+                      ? "bg-cool/20 text-cool ring-1 ring-inset ring-cool/40"
+                      : "bg-ink-800 text-fog-muted ring-1 ring-inset ring-ink-line hover:border-cool/40 hover:text-fog"
                   }`}
                 >
                   {p?.name || `Report ${i + 1}`}
@@ -319,7 +329,9 @@ export default function AnnotatePage({
         )}
 
         {!report ? (
-          <p className="mt-6 text-sm text-slate-400">No reports to label.</p>
+          <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
+            No reports to label.
+          </p>
         ) : (
           <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
             <div className="space-y-4">
@@ -342,8 +354,8 @@ export default function AnnotatePage({
             </div>
 
             {/* questions */}
-            <div className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            <div className="space-y-5 rounded-2xl border border-ink-line bg-ink-800/50 p-5">
+              <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-fog-muted">
                 Your assessment
               </h3>
               <Likert
@@ -380,7 +392,7 @@ export default function AnnotatePage({
 
               {data.has_improved && reportB && (
                 <div>
-                  <p className="text-sm font-medium text-slate-700">
+                  <p className="text-sm font-medium text-fog">
                     6. Which report is better?
                   </p>
                   <div className="mt-2 flex gap-2">
@@ -389,10 +401,10 @@ export default function AnnotatePage({
                         key={o}
                         type="button"
                         onClick={() => setBetter(o)}
-                        className={`rounded-lg border px-5 py-1.5 text-sm font-medium transition ${
+                        className={`rounded-md border px-5 py-1.5 font-mono text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50 ${
                           better === o
-                            ? "border-accent bg-accent text-white"
-                            : "border-slate-300 bg-white text-slate-600 hover:border-accent/50"
+                            ? "border-cool bg-cool/20 text-cool"
+                            : "border-ink-line bg-ink-800 text-fog-muted hover:border-cool/40"
                         }`}
                       >
                         {o}
@@ -403,18 +415,18 @@ export default function AnnotatePage({
               )}
 
               <div>
-                <label className="text-sm font-medium text-slate-700">
+                <label className="mb-1.5 block font-mono text-[11px] uppercase tracking-[0.15em] text-fog-muted">
                   Annotator
                 </label>
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+                  className="w-full rounded-md border border-ink-line bg-ink-900/60 px-3 py-2 text-sm text-fog placeholder:text-fog-faint outline-none transition focus:border-cool focus:ring-2 focus:ring-cool/25"
                   value={annotator}
                   onChange={(e) => setAnnotator(e.target.value)}
                 />
               </div>
 
               {error && (
-                <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                <p className="rounded-md border border-heat-high/30 bg-heat-high/10 px-3 py-2 text-sm text-heat-high">
                   {error}
                 </p>
               )}
@@ -422,7 +434,7 @@ export default function AnnotatePage({
               <button
                 onClick={submit}
                 disabled={submitting}
-                className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-fg disabled:opacity-60"
+                className="w-full rounded-md bg-heat-ember px-4 py-2.5 text-sm font-semibold text-ink-900 shadow-[0_8px_28px_-8px_rgba(240,104,60,0.7)] transition hover:bg-heat-ember/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heat-ember/50 disabled:opacity-60"
               >
                 {submitting ? "Submitting…" : "Submit label"}
               </button>

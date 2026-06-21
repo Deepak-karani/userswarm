@@ -108,6 +108,20 @@ def _exec_tool(browser: BrowserSession, name: str, args: dict) -> dict:
     return browser.get_page_state()
 
 
+def _goal_block(inputs: dict) -> str:
+    """Task-driven if a task was given, otherwise free-exploration."""
+    task = (inputs.get("task") or "").strip()
+    if task:
+        crit = (inputs.get("success_criteria") or "").strip() or "the task is completed"
+        return f"TASK: {task}\nSUCCESS CRITERIA: {crit}"
+    return (
+        "GOAL: Explore this product FREELY as your persona. There is no assigned task — do what a real "
+        "user of this kind would naturally do given the product description, and surface the friction, "
+        "confusion, and moments of delight you hit. Success = you could understand what the product is "
+        "and use it to do something this persona would actually want."
+    )
+
+
 def run_test(
     llm: LLMClient,
     persona: dict,
@@ -141,10 +155,10 @@ def _agentic_test(llm, persona, inputs, browser, prompt_override) -> tuple[dict,
     initial = (
         f"PERSONA: {persona.get('name', '')} — {persona.get('description', '')}; "
         f"traits {persona.get('traits', [])}\n"
-        f"TASK: {inputs.get('task', '')}\n"
-        f"SUCCESS CRITERIA: {inputs.get('success_criteria', '')}\n\n"
+        f"PRODUCT: {inputs.get('description', '')}\n"
+        f"{_goal_block(inputs)}\n\n"
         f"You have already opened {url}. Current page state:\n{_compact(obs)}\n\n"
-        f"You may take up to {cap - 1} more browser actions. Decide the next action toward the task."
+        f"You may take up to {cap - 1} more browser actions. Decide the next action toward your goal."
     )
     messages: list[dict] = [{"role": "user", "content": initial}]
     report: dict | None = None
@@ -279,8 +293,8 @@ def _synthesize_report(llm, persona, inputs, states, prompt_override, login_bloc
     ]
     user = (
         f"Persona: {persona.get('name', '')} - {persona.get('description', '')}\n"
-        f"Task: {inputs.get('task', '')}\n"
-        f"Success criteria: {inputs.get('success_criteria', '')}\n\n"
+        f"Product: {inputs.get('description', '')}\n"
+        f"{_goal_block(inputs)}\n\n"
         f"Observed page states (in order):\n{json.dumps(observed, indent=2)[:6000]}\n\n"
         "Now produce the strict JSON UX report with keys: persona, task_success, step_log, "
         "friction_points, evidence, severity, recommendations, confidence."

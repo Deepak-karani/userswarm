@@ -28,24 +28,26 @@ export default function ComparePage({
       <div className="mx-auto max-w-3xl px-6 py-10">
         <Link
           href={`/runs/${runId}`}
-          className="text-sm text-accent-fg hover:underline"
+          className="font-mono text-xs text-cool hover:underline"
         >
           ← Back to run
         </Link>
-        <h1 className="mt-3 text-2xl font-bold text-slate-900">
+        <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight text-fog">
           Base vs Improved
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-fog-muted">
           Arize proves whether the improvement moved the metrics that matter.
         </p>
 
         <div className="mt-6">
           {error ? (
-            <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <p className="rounded-xl border border-heat-high/30 bg-heat-high/10 px-4 py-3 text-sm text-heat-high">
               {error}
             </p>
           ) : !data ? (
-            <p className="text-sm text-slate-400">Loading comparison…</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
+              Loading comparison…
+            </p>
           ) : (
             <BeforeAfterTable data={data} />
           )}

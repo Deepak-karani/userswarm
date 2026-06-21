@@ -23,9 +23,9 @@ function fmt(v: number | undefined, format: "pct" | "rating" | "num"): string {
 
 export default function BeforeAfterTable({ data }: { data: CompareOut }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200">
+    <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink-800/50">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-ink-line bg-ink-900/40 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-fog-muted">
           <tr>
             <th className="px-4 py-3 font-medium">Metric</th>
             <th className="px-4 py-3 font-medium">Base</th>
@@ -33,7 +33,7 @@ export default function BeforeAfterTable({ data }: { data: CompareOut }) {
             <th className="px-4 py-3 font-medium">Δ</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-ink-line">
           {ROWS.map((row) => {
             const base = data.base?.[row.key];
             const improved = data.improved?.[row.key];
@@ -43,23 +43,23 @@ export default function BeforeAfterTable({ data }: { data: CompareOut }) {
               good = row.higherIsBetter ? delta > 0 : delta < 0;
             }
             return (
-              <tr key={row.key} className="bg-white">
-                <td className="px-4 py-3 font-medium text-slate-700">
+              <tr key={row.key}>
+                <td className="px-4 py-3 text-fog-muted">
                   {row.label}
                 </td>
-                <td className="px-4 py-3 tabular-nums text-slate-600">
+                <td className="px-4 py-3 font-mono tabular-nums text-fog-muted">
                   {fmt(base, row.format)}
                 </td>
-                <td className="px-4 py-3 tabular-nums font-medium text-slate-900">
+                <td className="px-4 py-3 font-mono font-medium tabular-nums text-fog">
                   {fmt(improved, row.format)}
                 </td>
-                <td className="px-4 py-3 tabular-nums">
+                <td className="px-4 py-3 font-mono tabular-nums">
                   {delta == null || delta === 0 ? (
-                    <span className="text-slate-400">—</span>
+                    <span className="text-fog-faint">—</span>
                   ) : (
                     <span
                       className={`font-medium ${
-                        good ? "text-emerald-600" : "text-rose-600"
+                        good ? "text-cool" : "text-heat-high"
                       }`}
                     >
                       {delta > 0 ? "+" : ""}

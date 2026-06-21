@@ -40,6 +40,7 @@ class InProcessRunner:
                     "task": run.task,
                     "success_criteria": run.success_criteria,
                     "do_not_click_rules": run.do_not_click_rules or [],
+                    "_run_id": run.id,
                 }
 
                 # --- Node: PersonaGenerator ---
@@ -65,12 +66,12 @@ class InProcessRunner:
                         "name": persona_row.name, "description": persona_row.description,
                         "traits": persona_row.traits, "goals": persona_row.goals,
                     }
-                    raw, steps = self._ux_test(llm, persona, inputs, run.id, prompt_override)
+                    raw, steps, engine = self._ux_test(llm, persona, inputs, run.id, prompt_override)
                     report = self._critique(llm, raw, persona_row.name)
-                    return idx, persona_row, report, steps
+                    return idx, persona_row, report, steps, engine
 
                 results = []
-                with ThreadPoolExecutor(max_workers=min(4, len(persona_rows)) or 1) as pool:
+                with ThreadPoolExecutor(max_workers=self._tester_concurrency(len(persona_rows))) as pool:
                     for idx, persona_row in enumerate(persona_rows):
                         events.emit(db, run.id, f"UXTester:{idx}", "running", persona_row.name)
                     for res in pool.map(_test, list(enumerate(persona_rows))):
@@ -78,7 +79,7 @@ class InProcessRunner:
 
                 results.sort(key=lambda r: r[0])
                 report_dicts: list[dict] = []
-                for idx, persona_row, report, steps in results:
+                for idx, persona_row, report, steps, engine in results:
                     report_row = AgentReport(
                         id=_new_id(), run_id=run.id, persona_id=persona_row.id, report=report,
                     )
@@ -91,7 +92,7 @@ class InProcessRunner:
                             screenshot_path=s.get("screenshot_path"),
                         ))
                     report_dicts.append(report)
-                    events.emit(db, run.id, f"UXTester:{idx}", "done", persona_row.name)
+                    events.emit(db, run.id, f"UXTester:{idx}", "done", f"{persona_row.name} · engine={engine}")
                 db.commit()
 
                 # --- Node: Aggregator ---
@@ -147,15 +148,20 @@ class InProcessRunner:
         self._improve_engine = "in-process"
         return improver.improve(llm, base_inputs, annotations, eval_failures)
 
-    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
-        """Run one UX tester: in-process scripted explorer with its own live BrowserSession.
+    def _tester_concurrency(self, n: int) -> int:
+        """How many UX testers run at once. In-process runs them in parallel."""
+        return min(4, n) or 1
 
-        The browser tester stays in-process in BOTH runners: Agentspan executes tools in
-        separate worker processes that cannot share a live Playwright session.
+    def _ux_test(self, llm, persona: dict, inputs: dict, run_id: str, prompt_override: str | None):
+        """Run one UX tester in-process with its own live BrowserSession.
+
+        Returns ``(raw_report, steps, engine_label)``. ``AgentspanRunner`` overrides this
+        to run the tester on the Orkes worker (Safe C).
         """
         browser = BrowserSession(run_id, do_not_click_rules=inputs.get("do_not_click_rules") or [])
         try:
-            return ux_tester.run_test(llm, persona, inputs, browser, run_id, prompt_override)
+            raw, steps = ux_tester.run_test(llm, persona, inputs, browser, run_id, prompt_override)
+            return raw, steps, "in-process"
         finally:
             browser.close()
 
@@ -264,6 +270,10 @@ class AgentspanRunner(InProcessRunner):
             return data
         self._improve_engine = "in-process (Agentspan fallback)"
         return super()._improve(llm, base_inputs, annotations, eval_failures)
+
+    # UXTester stays in-process (inherited from InProcessRunner): Agentspan workers are
+    # thread-unsafe for a live Playwright browser. The CDP shared-browser path is
+    # spike-validated but intentionally not wired here.
 
 
 def get_runner() -> InProcessRunner:

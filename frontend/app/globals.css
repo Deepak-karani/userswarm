@@ -1,12 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    sans-serif;
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-ink text-fog antialiased;
+  font-family: var(--font-body);
+}
+
+/* Thermal streamline signature: cool personas drift, friction radiates heat. */
+@keyframes drift {
+  from { transform: translateX(-12vw); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  to   { transform: translateX(112vw); opacity: 0; }
+}
+@keyframes heat-pulse {
+  0%, 100% { opacity: .30; transform: scale(1); }
+  50%      { opacity: .65; transform: scale(1.18); }
+}
+.streamline { animation: drift linear infinite; }
+.heatspot { animation: heat-pulse ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .streamline, .heatspot { animation: none !important; opacity: .5; }
 }

@@ -16,8 +16,8 @@ Severity = Literal["low", "medium", "high"]
 class RunCreate(BaseModel):
     url: str
     description: str
-    audience: str
-    task: str
+    audience: str = ""
+    task: str = ""              # optional — empty means the swarm free-explores
     success_criteria: str = ""
     do_not_click_rules: list[str] = Field(default_factory=list)
 

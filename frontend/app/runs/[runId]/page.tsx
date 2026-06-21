@@ -28,9 +28,11 @@ function Section({
   right?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-ink-line bg-ink-800/50 p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
+          {title}
+        </h2>
         {right}
       </div>
       {children}
@@ -80,7 +82,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
 
   if (!run && !error) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-20 text-center text-slate-400">
+      <div className="mx-auto max-w-4xl px-6 py-20 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
         Loading run…
       </div>
     );
@@ -89,8 +91,8 @@ export default function RunPage({ params }: { params: { runId: string } }) {
   if (!run && error) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-20 text-center">
-        <p className="text-rose-600">{error}</p>
-        <Link href="/" className="mt-4 inline-block text-sm text-accent-fg">
+        <p className="text-heat-high">{error}</p>
+        <Link href="/" className="mt-4 inline-block text-sm text-cool hover:underline">
           ← Back home
         </Link>
       </div>
@@ -114,35 +116,42 @@ export default function RunPage({ params }: { params: { runId: string } }) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium uppercase text-slate-500">
+              <span className="rounded bg-white/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-fog-muted ring-1 ring-inset ring-ink-line">
                 {run.variant}
               </span>
               <span
-                className={`text-xs font-medium uppercase tracking-wide ${
+                className={`font-mono text-[10px] uppercase tracking-[0.18em] ${
                   run.status === "error"
-                    ? "text-rose-600"
+                    ? "text-heat-high"
                     : run.status === "done"
-                    ? "text-emerald-600"
-                    : "text-accent-fg"
+                    ? "text-cool"
+                    : "text-cool"
                 }`}
               >
                 {isRunning && (
-                  <span className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-accent align-middle" />
+                  <span className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-cool align-middle" />
                 )}
                 {run.status}
               </span>
             </div>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
+            <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-fog">
               {run.description || run.url}
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              <span className="font-medium">Task:</span> {run.task}
+            <p className="mt-1.5 text-sm text-fog-muted">
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fog-faint">
+                Task
+              </span>{" "}
+              {run.task ? (
+                run.task
+              ) : (
+                <span className="text-fog-faint">free explore</span>
+              )}
             </p>
             <a
               href={run.url}
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-accent-fg hover:underline"
+              className="mt-1 inline-block font-mono text-xs text-cool hover:underline"
             >
               {run.url}
             </a>
@@ -151,21 +160,21 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/annotate/${run.id}`}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="rounded-md border border-ink-line bg-ink-800 px-3 py-2 text-sm font-medium text-fog transition hover:border-cool/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
             >
               Annotate
             </Link>
             <button
               onClick={onImprove}
               disabled={improving || isRunning}
-              className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:bg-accent-fg disabled:opacity-50"
+              className="rounded-md bg-heat-ember px-3 py-2 text-sm font-semibold text-ink-900 shadow-[0_8px_28px_-8px_rgba(240,104,60,0.7)] transition hover:bg-heat-ember/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-heat-ember/50 disabled:opacity-50"
             >
               {improving ? "Starting…" : "Run improvement"}
             </button>
             {showCompare && (
               <Link
                 href={`/runs/${run.id}/compare`}
-                className="rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-sm font-medium text-accent-fg hover:bg-accent-soft/70"
+                className="rounded-md border border-cool/40 bg-cool/10 px-3 py-2 text-sm font-medium text-cool transition hover:bg-cool/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
               >
                 Compare
               </Link>
@@ -174,7 +183,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
         </div>
 
         {run.status === "error" && run.error && (
-          <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-xl border border-heat-high/30 bg-heat-high/10 px-4 py-3 text-sm text-heat-high">
             {run.error}
           </div>
         )}
@@ -185,7 +194,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
             title="Summary"
             right={<SeverityBadge severity={run.aggregate.overall_severity} />}
           >
-            <p className="text-slate-700">{run.aggregate.summary}</p>
+            <p className="text-fog">{run.aggregate.summary}</p>
             <div className="mt-4 grid gap-6 sm:grid-cols-2">
               <FrictionList
                 title="Top friction points"
@@ -208,17 +217,17 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           <Section title="Arize evals">
             <EvalScores evals={run.evals} />
             {humanAgreement && (
-              <div className="mt-4 rounded-xl border border-accent/30 bg-accent-soft px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-accent-fg">
+              <div className="mt-4 rounded-xl border border-cool/30 bg-cool/10 px-4 py-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-cool">
                   Terac human agreement
                 </p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">
+                <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-fog">
                   {humanAgreement.score <= 1
                     ? `${Math.round(humanAgreement.score * 100)}%`
                     : humanAgreement.score.toFixed(1)}
                 </p>
                 {humanAgreement.explanation && (
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-fog-muted">
                     {humanAgreement.explanation}
                   </p>
                 )}
@@ -253,7 +262,7 @@ export default function RunPage({ params }: { params: { runId: string } }) {
           </Section>
         ) : (
           isRunning && (
-            <p className="text-center text-sm text-slate-400">
+            <p className="text-center font-mono text-[11px] uppercase tracking-[0.18em] text-fog-faint">
               AI users are exploring your product…
             </p>
           )
@@ -275,24 +284,24 @@ function ReportCard({
   const success =
     r?.task_success === true || r?.task_success === "true" || r?.task_success === "success";
   return (
-    <div className="rounded-xl border border-slate-200 p-5">
+    <div className="rounded-xl border border-ink-line bg-ink-800/30 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-semibold text-slate-900">
+        <h4 className="font-display font-semibold text-fog">
           {personaName || "Persona"}
         </h4>
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ring-1 ring-inset ${
               success
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-rose-50 text-rose-700"
+                ? "bg-cool/10 text-cool ring-cool/30"
+                : "bg-heat-high/10 text-heat-high ring-heat-high/30"
             }`}
           >
             {success ? "task succeeded" : "task failed"}
           </span>
           <SeverityBadge severity={r?.severity} />
           {typeof r?.confidence === "number" && (
-            <span className="text-xs text-slate-400">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fog-faint">
               conf {Math.round((r.confidence <= 1 ? r.confidence * 100 : r.confidence))}%
             </span>
           )}
@@ -309,12 +318,12 @@ function ReportCard({
           />
           {r?.evidence?.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
                 Evidence
               </p>
-              <ul className="space-y-1 text-sm text-slate-600">
+              <ul className="space-y-1 text-sm text-fog-muted">
                 {r.evidence.map((ev, i) => (
-                  <li key={i} className="border-l-2 border-slate-200 pl-2 italic">
+                  <li key={i} className="border-l-2 border-cool/30 pl-2 italic">
                     {ev}
                   </li>
                 ))}
@@ -325,7 +334,7 @@ function ReportCard({
 
         <div className="space-y-4">
           <div>
-            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+            <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
               Browser steps
             </p>
             <StepLog steps={report.steps} />

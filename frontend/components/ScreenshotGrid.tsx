@@ -15,7 +15,7 @@ export default function ScreenshotGrid({ steps }: { steps: StepLogItem[] }) {
           href={s.url!}
           target="_blank"
           rel="noreferrer"
-          className="group block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+          className="group block overflow-hidden rounded-lg border border-ink-line bg-ink-900/60 transition hover:border-cool/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cool/50"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -23,7 +23,7 @@ export default function ScreenshotGrid({ steps }: { steps: StepLogItem[] }) {
             alt={`Step ${s.step.index} screenshot`}
             className="h-32 w-full object-cover object-top transition group-hover:opacity-90"
           />
-          <div className="px-2 py-1 text-xs text-slate-500">
+          <div className="px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-fog-faint">
             #{s.step.index} {s.step.tool}
           </div>
         </a>

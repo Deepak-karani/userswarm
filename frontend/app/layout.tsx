@@ -3,9 +3,9 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UserSwarm — AI user agents for instant UX feedback",
+  title: "UserSwarm — release a swarm of AI users on your product",
   description:
-    "AI user agents give instant UX feedback; human labels calibrate trust; Arize proves improvement; Orkes/Agentspan coordinates the workflow.",
+    "Release a swarm of AI users on your product and watch where they hit friction. Human labels calibrate trust; Arize proves improvement; Orkes/Agentspan coordinates the swarm.",
 };
 
 export default function RootLayout({
@@ -16,16 +16,21 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans">
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
-                U
+        <header className="sticky top-0 z-20 border-b border-ink-line bg-ink/85 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+            <Link href="/" className="group flex items-center gap-2.5">
+              {/* swarm glyph — cool dots with one running hot */}
+              <span className="flex items-center gap-[3px]">
+                <span className="h-1.5 w-1.5 rounded-full bg-cool" />
+                <span className="h-1.5 w-1.5 rounded-full bg-cool/70" />
+                <span className="h-1.5 w-1.5 rounded-full bg-heat-ember" />
               </span>
-              <span className="font-semibold tracking-tight">UserSwarm</span>
+              <span className="font-mono text-sm font-semibold uppercase tracking-[0.22em] text-fog">
+                UserSwarm
+              </span>
             </Link>
-            <nav className="text-sm text-slate-500">
-              <Link href="/" className="hover:text-slate-900">
+            <nav className="flex items-center gap-5 font-mono text-xs uppercase tracking-widest text-fog-muted">
+              <Link href="/" className="transition hover:text-cool">
                 New run
               </Link>
             </nav>

@@ -8,19 +8,19 @@ export default function FrictionList({
   variant?: "friction" | "reco";
 }) {
   if (!items?.length) return null;
-  const marker =
-    variant === "reco" ? "text-emerald-500" : "text-rose-500";
+  // Friction radiates heat; recommendations point forward in cool.
+  const marker = variant === "reco" ? "text-cool" : "text-heat-med";
   return (
     <div>
       {title && (
-        <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+        <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
           {title}
         </p>
       )}
       <ul className="space-y-1.5">
         {items.map((it, i) => (
-          <li key={i} className="flex gap-2 text-sm text-slate-700">
-            <span className={`mt-0.5 ${marker}`}>
+          <li key={i} className="flex gap-2 text-sm text-fog">
+            <span className={`mt-0.5 font-mono ${marker}`}>
               {variant === "reco" ? "→" : "•"}
             </span>
             <span>{it}</span>

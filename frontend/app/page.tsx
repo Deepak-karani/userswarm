@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createRun, listRuns, RunOut } from "@/lib/api";
-import PitchFooter from "@/components/PitchFooter";
 import SeverityBadge from "@/components/SeverityBadge";
+import SwarmField from "@/components/SwarmField";
 
 const PILLARS = [
-  { k: "AI user agents", v: "Instant UX feedback from realistic personas" },
-  { k: "Human labels (Terac)", v: "Calibrate whether the feedback is trustworthy" },
-  { k: "Arize evals", v: "Prove base-vs-improved improvement" },
-  { k: "Orkes / Agentspan", v: "Coordinates the agent workflow" },
+  ["Agentspan", "coordinates the swarm"],
+  ["Terac", "humans calibrate trust"],
+  ["Arize", "evals prove improvement"],
 ];
 
 export default function HomePage() {
@@ -20,8 +19,6 @@ export default function HomePage() {
     url: "",
     description: "",
     audience: "",
-    task: "",
-    success_criteria: "",
     do_not_click: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -51,8 +48,6 @@ export default function HomePage() {
         url: form.url,
         description: form.description,
         audience: form.audience,
-        task: form.task,
-        success_criteria: form.success_criteria,
         do_not_click_rules,
       });
       router.push(`/runs/${id}`);
@@ -63,56 +58,63 @@ export default function HomePage() {
   }
 
   const inputCls =
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
-  const labelCls = "mb-1 block text-sm font-medium text-slate-700";
+    "w-full rounded-md border border-ink-line bg-ink-900/60 px-3 py-2.5 text-sm text-fog placeholder:text-fog-faint outline-none transition focus:border-cool focus:ring-2 focus:ring-cool/25";
+  const labelCls =
+    "mb-1.5 block font-mono text-[11px] uppercase tracking-[0.15em] text-fog-muted";
 
   return (
     <>
-      <section className="bg-gradient-to-b from-accent-soft/60 to-transparent">
-        <div className="mx-auto max-w-6xl px-6 pb-10 pt-16">
-          <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-accent-fg ring-1 ring-accent/20">
-            AI user agents · human-calibrated · eval-proven
-          </span>
-          <h1 className="mt-4 max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            Run a swarm of AI users through your product and get UX feedback in
-            minutes.
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-600">
-            AI user agents give instant UX feedback; human labels calibrate
-            whether that feedback is trustworthy; Arize proves improvement;
-            Orkes/Agentspan coordinates the workflow.
-          </p>
-          <p className="mt-2 text-sm text-slate-400">
-            Not a replacement for real user research.
-          </p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {PILLARS.map((p) => (
-              <div
-                key={p.k}
-                className="rounded-xl border border-slate-200 bg-white p-4"
-              >
-                <p className="text-sm font-semibold text-slate-900">{p.k}</p>
-                <p className="mt-1 text-xs text-slate-500">{p.v}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-6xl px-6 py-10">
-        <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-          <form
-            onSubmit={onSubmit}
-            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-          >
-            <h2 className="text-lg font-semibold text-slate-900">
-              Start a UX run
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Describe the product and the task you want AI users to attempt.
+      <section className="relative overflow-hidden border-b border-ink-line">
+        <SwarmField />
+        <div className="relative z-10 mx-auto grid max-w-6xl gap-12 px-6 pb-16 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24">
+          {/* thesis */}
+          <div className="max-w-xl">
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-cool">
+              AI user testing · human-calibrated · eval-proven
+            </p>
+            <h1 className="mt-5 font-display text-[2.6rem] font-semibold leading-[1.05] tracking-tight text-fog sm:text-6xl">
+              Release a swarm of AI users on your product.
+              <span className="block text-fog-muted">
+                Watch where they hit{" "}
+                <span className="text-heat-ember">friction</span>.
+              </span>
+            </h1>
+            <p className="mt-6 max-w-md text-[15px] leading-relaxed text-fog-muted">
+              Point it at a URL, say what the product is and who it&apos;s for. A
+              swarm of distinct personas explores it like real users and reports the
+              friction, in minutes. No test scripts.
+            </p>
+            <p className="mt-3 font-mono text-xs text-fog-faint">
+              Not a replacement for real user research.
             </p>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-9 flex flex-wrap gap-x-6 gap-y-2">
+              {PILLARS.map(([k, v]) => (
+                <div key={k} className="flex items-baseline gap-2">
+                  <span className="font-mono text-xs font-semibold uppercase tracking-widest text-cool">
+                    {k}
+                  </span>
+                  <span className="text-xs text-fog-faint">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* the input is the hero */}
+          <form
+            onSubmit={onSubmit}
+            className="relative h-fit rounded-2xl border border-ink-line bg-ink-800/70 p-6 shadow-[0_12px_50px_-16px_rgba(0,0,0,0.7)] backdrop-blur"
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold text-fog">
+                Set the target
+              </h2>
+              <span className="font-mono text-[10px] uppercase tracking-widest text-fog-faint">
+                free explore
+              </span>
+            </div>
+
+            <div className="space-y-4">
               <div>
                 <label className={labelCls}>Product URL</label>
                 <input
@@ -125,7 +127,7 @@ export default function HomePage() {
                 />
               </div>
               <div>
-                <label className={labelCls}>Product description</label>
+                <label className={labelCls}>What is it?</label>
                 <textarea
                   required
                   rows={2}
@@ -135,48 +137,24 @@ export default function HomePage() {
                   onChange={(e) => set("description", e.target.value)}
                 />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>Audience</label>
-                  <input
-                    required
-                    placeholder="Freelancers, 25-45"
-                    className={inputCls}
-                    value={form.audience}
-                    onChange={(e) => set("audience", e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>Task</label>
-                  <input
-                    required
-                    placeholder="Create and send a new invoice"
-                    className={inputCls}
-                    value={form.task}
-                    onChange={(e) => set("task", e.target.value)}
-                  />
-                </div>
-              </div>
               <div>
-                <label className={labelCls}>Success criteria</label>
+                <label className={labelCls}>Who is it for?</label>
                 <input
-                  required
-                  placeholder="Invoice is sent and confirmation is shown"
+                  placeholder="Freelancers, 25-45"
                   className={inputCls}
-                  value={form.success_criteria}
-                  onChange={(e) => set("success_criteria", e.target.value)}
+                  value={form.audience}
+                  onChange={(e) => set("audience", e.target.value)}
                 />
               </div>
               <div>
                 <label className={labelCls}>
-                  Do-not-click rules{" "}
-                  <span className="font-normal text-slate-400">
-                    (optional · comma or newline separated)
+                  Do-not-click{" "}
+                  <span className="tracking-normal text-fog-faint">
+                    (optional · comma / newline)
                   </span>
                 </label>
-                <textarea
-                  rows={2}
-                  placeholder="Delete account, Logout, Submit payment"
+                <input
+                  placeholder="Delete account, Submit payment"
                   className={inputCls}
                   value={form.do_not_click}
                   onChange={(e) => set("do_not_click", e.target.value)}
@@ -185,7 +163,7 @@ export default function HomePage() {
             </div>
 
             {error && (
-              <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <p className="mt-4 rounded-md border border-heat-high/30 bg-heat-high/10 px-3 py-2 text-sm text-heat-high">
                 {error}
               </p>
             )}
@@ -193,54 +171,69 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-fg disabled:opacity-60"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-heat-ember px-4 py-3 text-sm font-semibold text-ink-900 shadow-[0_8px_28px_-8px_rgba(240,104,60,0.7)] transition hover:bg-heat-ember/90 disabled:opacity-60"
             >
-              {submitting ? "Starting run…" : "Run the swarm →"}
+              {submitting ? "Releasing the swarm…" : "Release the swarm →"}
             </button>
           </form>
-
-          <aside>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Recent runs
-            </h3>
-            {recent.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-400">
-                No runs yet. Start one to see results here.
-              </p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {recent.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      href={`/runs/${r.id}`}
-                      className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-accent/40"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium text-slate-800">
-                          {r.description || r.url || r.id}
-                        </span>
-                        {r.aggregate?.overall_severity && (
-                          <SeverityBadge
-                            severity={r.aggregate.overall_severity}
-                          />
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 uppercase">
-                          {r.variant}
-                        </span>
-                        <span>{r.status}</span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
         </div>
       </section>
 
-      <PitchFooter />
+      {/* recent runs */}
+      <section className="mx-auto max-w-6xl px-6 py-12">
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.22em] text-fog-muted">
+          Recent runs
+        </h3>
+        {recent.length === 0 ? (
+          <p className="mt-3 text-sm text-fog-faint">
+            No runs yet. Release a swarm to see results here.
+          </p>
+        ) : (
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recent.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/runs/${r.id}`}
+                  className="block rounded-xl border border-ink-line bg-ink-800/50 p-4 transition hover:border-cool/40 hover:bg-ink-800"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-fog">
+                      {r.description || r.url || r.id}
+                    </span>
+                    {r.aggregate?.overall_severity && (
+                      <SeverityBadge severity={r.aggregate.overall_severity} />
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-fog-faint">
+                    <span className="rounded bg-white/5 px-1.5 py-0.5">
+                      {r.variant}
+                    </span>
+                    <span
+                      className={
+                        r.status === "done"
+                          ? "text-cool"
+                          : r.status === "error"
+                            ? "text-heat-high"
+                            : "text-fog-muted"
+                      }
+                    >
+                      {r.status}
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <footer className="border-t border-ink-line">
+        <div className="mx-auto max-w-6xl px-6 py-8 text-xs text-fog-faint">
+          AI user agents give instant UX feedback; human labels calibrate whether it
+          is trustworthy; Arize proves improvement; Orkes/Agentspan coordinates the
+          swarm.
+        </div>
+      </footer>
     </>
   );
 }

@@ -81,8 +81,8 @@ export interface CreateRunInput {
   url: string;
   description: string;
   audience: string;
-  task: string;
-  success_criteria: string;
+  task?: string; // optional — empty means the swarm free-explores
+  success_criteria?: string;
   do_not_click_rules: string[];
 }
 
