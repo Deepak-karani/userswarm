@@ -30,6 +30,9 @@ class AgentReportSchema(BaseModel):
     task_success: bool
     step_log: list[str] = Field(default_factory=list)
     friction_points: list[str] = Field(default_factory=list)
+    # F2: structured friction — each {issue, quote (voice-of-customer), severity}.
+    # friction_points stays the derived [issue, ...] list so existing evals/critic work.
+    friction: list[dict] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     severity: Severity = "medium"
     recommendations: list[str] = Field(default_factory=list)

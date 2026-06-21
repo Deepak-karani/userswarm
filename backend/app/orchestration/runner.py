@@ -254,6 +254,10 @@ class AgentspanRunner(InProcessRunner):
             data = None
         if data:
             self._critic_engine = "Agentspan"
+            # F2: friction quotes are the user's voice from the tester; never let the critic
+            # blank them. Carry them through deterministically.
+            if raw.get("friction"):
+                data["friction"] = raw["friction"]
             return _normalize(data, {"name": persona_name})  # local schema guarantee, no extra LLM
         self._critic_engine = "in-process (Agentspan fallback)"
         return super()._critique(llm, raw, persona_name)

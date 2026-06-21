@@ -67,12 +67,25 @@ TOOL_SCHEMAS: list[dict] = [
                 "task_success": {"type": "boolean"},
                 "step_log": {"type": "array", "items": {"type": "string"}},
                 "friction_points": {"type": "array", "items": {"type": "string"}},
+                "friction": {
+                    "type": "array",
+                    "description": "Same friction, structured. For each: the issue, a first-person voice-of-customer quote the persona would actually say, and severity.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "issue": {"type": "string"},
+                            "quote": {"type": "string"},
+                            "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+                        },
+                        "required": ["issue", "quote"],
+                    },
+                },
                 "evidence": {"type": "array", "items": {"type": "string"}},
                 "severity": {"type": "string", "enum": ["low", "medium", "high"]},
                 "recommendations": {"type": "array", "items": {"type": "string"}},
                 "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
             },
-            "required": ["persona", "task_success", "friction_points", "evidence", "recommendations"],
+            "required": ["persona", "task_success", "friction", "evidence", "recommendations"],
         },
     },
 ]

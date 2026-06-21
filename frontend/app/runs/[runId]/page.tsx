@@ -15,7 +15,7 @@ import StepLog from "@/components/StepLog";
 import FrictionList from "@/components/FrictionList";
 import SeverityBadge from "@/components/SeverityBadge";
 import EvalScores from "@/components/EvalScores";
-import ScreenshotGrid from "@/components/ScreenshotGrid";
+import SessionReplay from "@/components/SessionReplay";
 import PitchFooter from "@/components/PitchFooter";
 
 function Section({
@@ -310,7 +310,33 @@ function ReportCard({
 
       <div className="mt-4 grid gap-5 lg:grid-cols-2">
         <div className="space-y-4">
-          <FrictionList title="Friction points" items={r?.friction_points || []} />
+          {r?.friction?.length ? (
+            <div>
+              <p className="mb-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-fog-muted">
+                Friction points
+              </p>
+              <ul className="space-y-2.5">
+                {r.friction.map((f, i) => (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-ink-line bg-ink-900/40 p-3"
+                  >
+                    <div className="flex gap-2 text-sm text-fog">
+                      <span className="mt-0.5 font-mono text-heat-med">•</span>
+                      <span>{f.issue}</span>
+                    </div>
+                    {f.quote && (
+                      <p className="mt-2 border-l-2 border-heat-ember/60 pl-3 text-sm italic text-fog-muted">
+                        &ldquo;{f.quote}&rdquo;
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <FrictionList title="Friction points" items={r?.friction_points || []} />
+          )}
           <FrictionList
             title="Recommendations"
             items={r?.recommendations || []}
@@ -339,7 +365,7 @@ function ReportCard({
             </p>
             <StepLog steps={report.steps} />
           </div>
-          <ScreenshotGrid steps={report.steps} />
+          <SessionReplay steps={report.steps} />
         </div>
       </div>
     </div>

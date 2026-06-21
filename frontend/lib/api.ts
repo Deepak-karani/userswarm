@@ -21,11 +21,18 @@ export interface StepLogItem {
   screenshot_path?: string | null;
 }
 
+export interface FrictionItem {
+  issue: string;
+  quote?: string;
+  severity?: Severity;
+}
+
 export interface ReportBody {
   persona: string;
   task_success: boolean | string;
   step_log: string[];
   friction_points: string[];
+  friction?: FrictionItem[]; // F2: structured friction with voice-of-customer quotes
   evidence: string[];
   severity: Severity;
   recommendations: string[];

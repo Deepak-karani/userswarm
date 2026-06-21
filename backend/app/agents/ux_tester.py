@@ -40,7 +40,11 @@ _AGENT_SYSTEM = (
     "counts as completing the task.\n"
     "When done or stuck, call finish_report. Rules: set task_success true if the success criteria were met OR you "
     "reached the final ready-to-submit confirmation; cite concrete on-page evidence for every friction point; "
-    "never invent UI you did not observe; give specific, actionable recommendations."
+    "never invent UI you did not observe; give specific, actionable recommendations. "
+    "Also fill `friction`: a list of {issue, quote, severity}. The `quote` is REQUIRED and must be NON-EMPTY: "
+    "a vivid first-person sentence in the persona's own voice reacting to that friction (e.g. \"I can't tell "
+    "what this button does\" or \"Wait, where did the menu go?\"). Even if the page is broken or empty, write "
+    "what this persona would actually mutter. Never leave a quote blank."
 )
 
 _DEFAULT_SYSTEM = _AGENT_SYSTEM  # back-compat for callers/imports
@@ -238,6 +242,28 @@ def _normalize(report: dict, persona: dict) -> dict:
         report["confidence"] = max(0.0, min(1.0, float(report.get("confidence", 0.5))))
     except Exception:
         report["confidence"] = 0.5
+
+    # F2: normalize structured friction (issue + voice-of-customer quote + severity).
+    sev = report.get("severity", "medium")
+    norm_fr: list[dict] = []
+    fr = report.get("friction")
+    if isinstance(fr, list):
+        for f in fr:
+            if isinstance(f, dict) and f.get("issue"):
+                fs = f.get("severity")
+                norm_fr.append({
+                    "issue": str(f.get("issue", "")),
+                    "quote": str(f.get("quote", "")),
+                    "severity": fs if fs in ("low", "medium", "high") else sev,
+                })
+            elif isinstance(f, str) and f.strip():
+                norm_fr.append({"issue": f, "quote": "", "severity": sev})
+    if not norm_fr and report.get("friction_points"):
+        norm_fr = [{"issue": str(fp), "quote": "", "severity": sev} for fp in report["friction_points"]]
+    report["friction"] = norm_fr
+    # Keep friction_points as the derived issue list so existing evals/critic/aggregator are unchanged.
+    if norm_fr:
+        report["friction_points"] = [f["issue"] for f in norm_fr]
     return report
 
 
@@ -297,7 +323,8 @@ def _synthesize_report(llm, persona, inputs, states, prompt_override, login_bloc
         f"{_goal_block(inputs)}\n\n"
         f"Observed page states (in order):\n{json.dumps(observed, indent=2)[:6000]}\n\n"
         "Now produce the strict JSON UX report with keys: persona, task_success, step_log, "
-        "friction_points, evidence, severity, recommendations, confidence."
+        "friction (a list of {issue, quote, severity}, where quote is a NON-EMPTY first-person line this "
+        "persona would actually say out loud about the friction), evidence, severity, recommendations, confidence."
     )
     default = {
         "persona": persona.get("name", "Persona"), "task_success": not login_blocked,
