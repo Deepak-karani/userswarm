@@ -57,9 +57,6 @@ function TrustChip({
       ? `${Math.round(evalResult!.score * 100)}%`
       : evalResult!.score.toFixed(1)
     : "—";
-  const mock = evalResult?.explanation
-    ?.toLowerCase()
-    .includes("mock");
   return (
     <div className="flex-1 rounded-xl border border-cool/25 bg-cool/5 px-4 py-3">
       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-cool">
@@ -68,11 +65,6 @@ function TrustChip({
       <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-fog">
         {value}
       </p>
-      {mock && (
-        <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.14em] text-fog-faint">
-          mock-calibrated
-        </p>
-      )}
     </div>
   );
 }
@@ -258,6 +250,25 @@ export default function RunPage({ params }: { params: { runId: string } }) {
 
         {tab === "overview" && (
           <div className="space-y-6">
+            {run.personas?.length > 0 && (
+              <Section title={`Personas (${run.personas.length})`}>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {run.personas.map((p) => (
+                    <PersonaCard key={p.id} persona={p} />
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-fog-faint">
+                  See what each tester found in the{" "}
+                  <button
+                    onClick={() => setTab("results")}
+                    className="font-medium text-cool hover:underline"
+                  >
+                    Results tab →
+                  </button>
+                </p>
+              </Section>
+            )}
+
             {(run.aggregate || humanAgreement || humanLikeness) && (
               <Section
                 title="Summary"
@@ -340,25 +351,6 @@ export default function RunPage({ params }: { params: { runId: string } }) {
                 <EvalScores evals={run.evals} />
               </Section>
             </div>
-
-            {run.personas?.length > 0 && (
-              <Section title={`Personas (${run.personas.length})`}>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {run.personas.map((p) => (
-                    <PersonaCard key={p.id} persona={p} />
-                  ))}
-                </div>
-                <p className="mt-4 text-xs text-fog-faint">
-                  See what each tester found in the{" "}
-                  <button
-                    onClick={() => setTab("results")}
-                    className="font-medium text-cool hover:underline"
-                  >
-                    Results tab →
-                  </button>
-                </p>
-              </Section>
-            )}
           </div>
         )}
 

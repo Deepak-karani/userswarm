@@ -50,3 +50,4 @@ agentdb.rvf.lock
 .idea/
 .vscode/
 *.swp
+.gstack/
